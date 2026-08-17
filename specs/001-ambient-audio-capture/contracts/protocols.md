@@ -93,6 +93,10 @@ class MetadataStore(Protocol):
     def list_sessions(self) -> list[SessionSummary]
     def get_session(self, session_id: str) -> SessionDetail | None
     def active_sessions(self) -> list[Session]   # reconciliation input
+
+    def last_device_ids(self) -> dict[SourceKind, str]
+        """Device ids used by the most recent session, by kind; empty if
+        no sessions exist. Feeds DeviceEnumerator.readiness(previous)."""
 ```
 
 All methods are called from the writer thread or (reads) the event loop
