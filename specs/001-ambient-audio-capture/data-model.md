@@ -24,9 +24,9 @@ events.
 **State machine** (only these transitions are legal):
 
 ```text
-(create+start, atomic) ──► active ──stop──► completed
-                              │
-                              └──startup reconciliation──► interrupted
+(create+start, atomic) ──► active ──stop──────────────────► completed
+                              │──all sources device-lost──► completed
+                              └──startup reconciliation───► interrupted
 ```
 
 - Create and start are one atomic operation (POST /sessions): preflight
@@ -63,7 +63,10 @@ One input of a session. A session has exactly two in v1: `mic` and
 - Session stop marks still-`active` sources `completed`.
 - If BOTH sources end via device loss, the session is finalised
   `completed` with both sources `ended_device_lost` (nothing left to
-  capture; the recording up to that point is preserved).
+  capture; the recording up to that point is preserved). Decision
+  confirmed 2026-08-17: `completed`, not `interrupted` — all capturable
+  audio was captured; `interrupted` is reserved for process death
+  (reconciliation). The `device_lost` events distinguish this ending.
 
 ## AudioChunk
 

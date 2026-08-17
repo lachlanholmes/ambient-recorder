@@ -248,6 +248,10 @@ capture actually beginning.
 - Exactly one session may be active at a time; a start request during an
   active session is refused. (Meetings don't overlap on one machine; this
   keeps the lifecycle simple in v1.)
+- "Create" and "start" (FR-006) are a single atomic operation: a session
+  only comes into existence once preflight passes and capture begins; a
+  failed preflight creates nothing. There is no dormant created-but-not-
+  started state.
 - The recorder runs as a single long-lived local process on the user's
   Windows 11 machine; the user is its only operator, and no authentication
   is required for the local API in v1.

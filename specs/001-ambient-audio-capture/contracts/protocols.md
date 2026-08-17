@@ -25,8 +25,13 @@ class CaptureProvider(Protocol):
              on_device_lost: DeviceLostCallback) -> CaptureStream:
         """Open a capture stream at the device's native rate.
         on_frames(bytes, frame_count) is called from a capture thread.
-        on_device_lost() fires once if the device disappears (FR-011).
-        Raises DeviceUnavailableError if the device cannot be opened."""
+        on_device_lost() fires once when the source can no longer capture
+        meaningful audio (FR-011): the device disappeared, or — for the
+        system source — the default output device changed (spec edge
+        case: a loopback stream stays attached to the old, now-silent
+        device, so the provider MUST actively poll the default device
+        and report the change as loss). Raises DeviceUnavailableError if
+        the device cannot be opened."""
 
 class CaptureStream(Protocol):
     def close(self) -> None: ...   # idempotent

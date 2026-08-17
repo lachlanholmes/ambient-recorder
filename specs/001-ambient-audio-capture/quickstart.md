@@ -23,7 +23,7 @@ pytest tests/contract tests/unit tests/integration   # all green, no devices nee
 
 ```bash
 python -m ambient_recorder     # starts uvicorn on 127.0.0.1:8377
-# startup logs (JSON lines): config, device readiness, reconciliation result
+# startup logs (JSON lines): pid, config, device readiness, reconciliation result
 ```
 
 ## Scenario 1 — start/stop round trip (US1)
@@ -48,8 +48,10 @@ Verify separability and format (NFR-002):
 
 ```bash
 curl -s -X POST http://127.0.0.1:8377/sessions -d '{"title":"crash test"}' -H 'content-type: application/json'
-# capture ≥ 3 minutes, then kill ungracefully:
-taskkill //F //IM python.exe   # or kill -9 <pid> of the recorder
+# capture ≥ 3 minutes, then kill ungracefully — target the recorder's own
+# pid (printed in its first startup log line); do NOT kill python.exe by
+# image name, that takes out every Python process:
+kill -9 <recorder-pid>         # or: taskkill //F //PID <recorder-pid>
 python -m ambient_recorder     # restart
 curl -s http://127.0.0.1:8377/sessions/<id>
 # expect: status interrupted, reconciled event present, no .part files in session dir
