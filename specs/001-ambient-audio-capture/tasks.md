@@ -60,8 +60,8 @@
 - [x] T016 [US1] Capture engine in `src/ambient_recorder/audio/engine.py`: per-source bounded queue + writer thread, 10 s chunk cadence, seq numbering, stop() flushes final partial chunk then finalises session, single state lock, session owned by engine (research R6); unit tests for chunk cadence math in `tests/unit/test_engine_chunking.py`
 - [x] T017 [US1] Session routes in `src/ambient_recorder/api/routes.py`: POST /sessions (atomic create+start via engine), POST /sessions/{id}/stop, GET /sessions, GET /sessions/{id}; wire into main.py
 - [x] T018 [US1] Integration test full lifecycle with fake provider in `tests/integration/test_session_lifecycle.py`: start → inject N frames → stop → chunks on disk are valid WAVs, metadata matches inventory, duration derived from audio length not wall clock
-- [ ] T019 [US1] **[GATE-D — halt for human approval before this task]** WASAPI provider in `src/ambient_recorder/audio/wasapi.py`: PyAudioWPatch mic + loopback capture, host-API pre-warm at startup (research R7), device_id/label mapping per contracts/protocols.md; includes default-output poll (~2 s interval) that fires on_device_lost for the system source when the default device changes (spec edge case — a loopback stream keeps capturing the old, now-silent device)
-- [ ] T020 [US1] **[GATE-D]** Manual device test script + instructions in `tests/manual/test_us1_live_capture.py` / `tests/manual/README.md`: quickstart Scenario 1 with real devices, ffprobe verification per NFR-002
+- [x] T019 [US1] **[GATE-D — halt for human approval before this task]** WASAPI provider in `src/ambient_recorder/audio/wasapi.py`: PyAudioWPatch mic + loopback capture, host-API pre-warm at startup (research R7), device_id/label mapping per contracts/protocols.md; includes default-output poll (~2 s interval) that fires on_device_lost for the system source when the default device changes (spec edge case — a loopback stream keeps capturing the old, now-silent device)
+- [x] T020 [US1] **[GATE-D]** Manual device test script + instructions in `tests/manual/test_us1_live_capture.py` / `tests/manual/README.md`: quickstart Scenario 1 with real devices, ffprobe verification per NFR-002
 
 **Checkpoint**: US1 fully functional — MVP deliverable
 
@@ -79,7 +79,7 @@
 - [x] T022 [US2] Integration test reconciliation in `tests/integration/test_crash_reconciliation.py`: fabricate active-session rows + chunk files (+ stray .part) → boot app → interrupted status, correct duration, .part gone, idempotent on double boot; no-active-session boot is a silent no-op
 - [x] T023 [P] [US2] Device-loss handling in `src/ambient_recorder/audio/engine.py`: on_device_lost → source ends at point of loss (final partial chunk flushed), `device_lost` event with kind/device_id/last_seq, session continues on survivor; both-lost → finalise `completed` (data-model rule); integration test via fake provider in `tests/integration/test_device_loss.py`, including the default-output-change-as-loss path (fake triggers loss the way the T019 poll does)
 - [x] T024 [P] [US2] Client-independence test in `tests/integration/test_client_disconnect.py`: drop the HTTP client mid-session; capture continues, later stop succeeds (FR-009)
-- [ ] T025 [US2] **[GATE-D]** Manual crash + unplug scripts in `tests/manual/test_us2_crash_and_unplug.md`: kill -9 per quickstart Scenario 2; headset unplug mid-session verifying FR-011 event and survivor continuation
+- [x] T025 [US2] **[GATE-D]** Manual crash + unplug scripts in `tests/manual/test_us2_crash_and_unplug.md`: kill -9 per quickstart Scenario 2; headset unplug mid-session verifying FR-011 event and survivor continuation
 
 **Checkpoint**: US1 + US2 independently verifiable
 
@@ -96,7 +96,7 @@
 - [x] T026 [US3] GET /devices in `src/ambient_recorder/api/routes.py` using DeviceEnumerator.readiness() incl. `default_changed` detection (compare vs last session's device ids from metadata); contract test in `tests/contract/test_devices_api.py`
 - [x] T027 [US3] Start preflight in `src/ambient_recorder/api/routes.py` + engine: both sources required (FR-012) → 424 `device_missing` with `detail.missing`; disk check (FR-007, config threshold) → 507 `disk_space_low` with free/required; contract tests in `tests/contract/test_preflight.py` proving no session row is created on refusal
 - [x] T028 [P] [US3] Mid-session disk-full safe finalise in `src/ambient_recorder/audio/engine.py`: DiskFullError → `disk_low` event, finalise session cleanly without corrupting persisted chunks; integration test in `tests/integration/test_disk_full.py`
-- [ ] T029 [US3] **[GATE-D]** Manual readiness walkthrough in `tests/manual/test_us3_readiness.md`: real unplug → 424; threshold bump → 507 (quickstart Scenario 3)
+- [x] T029 [US3] **[GATE-D]** Manual readiness walkthrough in `tests/manual/test_us3_readiness.md`: real unplug → 424; threshold bump → 507 (quickstart Scenario 3)
 
 **Checkpoint**: All refusal paths typed, tested, and side-effect-free
 
@@ -112,7 +112,7 @@
 
 - [x] T030 [US4] Repeated start/stop integration test in `tests/integration/test_repeated_sessions.py`: 5 sequential sessions on one app instance (fake provider), no state leakage, list shows all
 - [x] T031 [US4] Start-latency instrumentation in `src/ambient_recorder/audio/engine.py` + `src/ambient_recorder/api/routes.py`: log request→first-frame latency as structured event; CI test asserts only a generous ceiling (< 5 s, flake-resistant) — the strict 2 s SC-004 check is manual (T032)
-- [ ] T032 [US4] **[GATE-D]** Manual timed-start check in `tests/manual/test_us4_latency.md`: real devices, warm process, `time curl` 3× per quickstart Scenario 4 (SC-004)
+- [x] T032 [US4] **[GATE-D]** Manual timed-start check in `tests/manual/test_us4_latency.md`: real devices, warm process, `time curl` 3× per quickstart Scenario 4 (SC-004)
 
 **Checkpoint**: All four user stories independently functional
 
@@ -123,7 +123,7 @@
 - [x] T033 [P] OpenAPI surface guard test in `tests/contract/test_openapi_surface.py`: `app.openapi()` contains exactly the six documented routes (contracts/rest-api.md item 4)
 - [x] T034 [P] README.md at repo root: what the recorder is, quickstart pointer, privacy stance (constitution I), gate (d) note for contributors
 - [ ] T035 **[GATE-D]** 60-minute soak per `tests/manual/test_soak.md`: SC-001 (both sources intact, ≤ 250 MB/hour) and SC-006 (< 5% CPU, < 200 MB RAM, 0% GPU) recorded in the doc
-- [ ] T036 Run full quickstart.md validation end-to-end; fix discrepancies between docs and behavior
+- [x] T036 Run full quickstart.md validation end-to-end; fix discrepancies between docs and behavior
 
 ---
 
