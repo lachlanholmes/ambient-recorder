@@ -32,6 +32,10 @@ ruff check src tests
 Real-device validation lives in `tests/manual/` and runs by hand only —
 never in CI. End-to-end scenarios: `specs/001-ambient-audio-capture/quickstart.md`.
 
+Run the recorder from the repo root (or set `AMBREC_DATA_ROOT` to an
+absolute path) — recordings land in `./data/` relative to the working
+directory. Future-feature ideas are collected in `docs/backlog.md`.
+
 ## Contributor notes
 
 - Every boundary is a typed contract (Pydantic model or Protocol). Contract
