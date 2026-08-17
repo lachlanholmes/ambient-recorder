@@ -14,7 +14,12 @@ it from here in the same commit.
   and decide log destination when there's no console. (Noted 2026-08-18.)
 - **Transcription (feature 002 candidate)**: local STT over the separable
   per-source chunks; the mic/system split exists precisely to give it a
-  cheap speaker-attribution signal (spec 001 FR-003).
+  cheap speaker-attribution signal (spec 001 FR-003). Field note from the
+  001 soak (2026-08-18): laptop speakers acoustically bleed into the mic
+  array at roughly quarter-to-half volume, so the mic track contains an
+  attenuated echo of system audio — attribution should treat "louder on
+  which track" as the signal, not mere presence, and echo cancellation may
+  be worth a research task.
 - **Storage retention / library management**: auto-cleanup and archival;
   explicitly deferred out of spec 001 (its disk-space threshold is the only
   v1 guard).

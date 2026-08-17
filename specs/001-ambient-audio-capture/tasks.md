@@ -122,7 +122,7 @@
 
 - [x] T033 [P] OpenAPI surface guard test in `tests/contract/test_openapi_surface.py`: `app.openapi()` contains exactly the six documented routes (contracts/rest-api.md item 4)
 - [x] T034 [P] README.md at repo root: what the recorder is, quickstart pointer, privacy stance (constitution I), gate (d) note for contributors
-- [ ] T035 **[GATE-D]** 60-minute soak per `tests/manual/test_soak.md`: SC-001 (both sources intact, ≤ 250 MB/hour) and SC-006 (< 5% CPU, < 200 MB RAM, 0% GPU) recorded in the doc
+- [x] T035 **[GATE-D]** 60-minute soak per `tests/manual/test_soak.md`: SC-001 (both sources intact, ≤ 250 MB/hour) and SC-006 (< 5% CPU, < 200 MB RAM, 0% GPU) recorded in the doc
 - [x] T036 Run full quickstart.md validation end-to-end; fix discrepancies between docs and behavior
 
 ---
