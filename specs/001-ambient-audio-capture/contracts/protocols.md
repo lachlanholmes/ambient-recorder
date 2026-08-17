@@ -13,8 +13,13 @@ class DeviceEnumerator(Protocol):
         """All capture-capable devices: mics and loopback analogues.
         DeviceInfo: id, label, kind (mic|system), is_default, native_rate_hz."""
 
-    def readiness(self) -> list[DeviceReadiness]:
-        """FR-005 readiness per source kind (present/missing/default_changed)."""
+    def readiness(self, previous: Mapping[SourceKind, str] | None = None
+                  ) -> list[DeviceReadiness]:
+        """FR-005 readiness per source kind (present/missing/default_changed).
+        `previous` maps source kind → device_id used by the most recent
+        session; when provided, a present default device whose id differs
+        is reported `default_changed` (data-model.md DeviceReadiness).
+        The caller (API layer) supplies it from MetadataStore."""
 ```
 
 ## CaptureProvider (audio/protocols.py)
@@ -71,6 +76,16 @@ class MetadataStore(Protocol):
         session is active (partial unique index)."""
 
     def record_chunk(self, chunk: AudioChunk) -> None
+        """Insert chunk row and increment the source's chunk_count.
+        Idempotent on (session_id, source_kind, seq) — reconciliation may
+        re-record chunks found on disk."""
+
+    def end_source(self, session_id: str, kind: SourceKind,
+                   status: Literal["completed", "ended_device_lost"],
+                   ended_at: datetime) -> None
+        """Terminal transition for one capture source (stop, device loss,
+        or reconciliation)."""
+
     def append_event(self, event: SessionEvent) -> None
     def finalize_session(self, session_id: str,
                          status: Literal["completed", "interrupted"],
