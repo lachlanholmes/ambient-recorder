@@ -65,7 +65,7 @@ class EnergyBuffer:
         for _ in range(max(0, gap)):
             t.slots.append(None)
         for i in range(n_slots):
-            block = samples[i * per_slot:(i + 1) * per_slot]
+            block = samples[i * per_slot : (i + 1) * per_slot]
             rms = float(np.sqrt(np.mean(block * block))) if len(block) else 0.0
             t.slots.append(20 * math.log10(rms) if rms > 1e-6 else -120.0)
         while len(t.slots) > self._max_slots:

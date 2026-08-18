@@ -23,6 +23,7 @@ class FakeSpeechEngine:
     def __init__(self) -> None:
         self.script: dict[tuple[str, int], list[RawSegment]] = {}
         self.calls: list[tuple[str, int, int]] = []  # (track, call_index, n_bytes)
+        self.modes: list[str] = []  # "live" | "on_demand" per call, in order
         self.delay_s: float = 0.0
         self.fail_after_calls: int | None = None
         self._counts: dict[str, int] = defaultdict(int)
@@ -34,11 +35,13 @@ class FakeSpeechEngine:
     # per-track without changing the SpeechEngine contract.
     def transcribe(self, pcm16k_mono: bytes, *, beam_size: int = 1,
                    initial_prompt: str | None = None) -> list[RawSegment]:
-        track = (initial_prompt or "track=mic").split("=", 1)[1]
+        parts = dict(kv.split("=", 1) for kv in (initial_prompt or "track=mic").split(";"))
+        track = parts.get("track", "mic")
         with self._lock:
             idx = self._counts[track]
             self._counts[track] += 1
             self.calls.append((track, idx, len(pcm16k_mono)))
+            self.modes.append(parts.get("mode", "live"))
             if self.fail_after_calls is not None and len(self.calls) > self.fail_after_calls:
                 raise EngineError("scripted engine failure")
         if self.delay_s:

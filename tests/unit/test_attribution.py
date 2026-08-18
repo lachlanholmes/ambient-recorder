@@ -1,0 +1,86 @@
+"""T011: EnergyBuffer + bleed rule, pure and model-free."""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from ambient_recorder.models.session import SourceKind
+from ambient_recorder.transcription.attribution import (
+    AttributionConfig,
+    EnergyBuffer,
+    TimedSegment,
+    attribute,
+)
+
+MIC, SYS = SourceKind.MIC, SourceKind.SYSTEM
+
+
+def tone(seconds: float, amplitude: int) -> bytes:
+    n = int(16000 * seconds)
+    return (np.full(n, amplitude, dtype=np.int16)).tobytes()
+
+
+def _buf(mic_amp: int, sys_amp: int, seconds: float = 10.0) -> EnergyBuffer:
+    e = EnergyBuffer()
+    e.add(MIC, 0.0, tone(seconds, mic_amp))
+    e.add(SYS, 0.0, tone(seconds, sys_amp))
+    return e
+
+
+def test_rms_db_and_coverage():
+    e = EnergyBuffer()
+    e.add(MIC, 0.0, tone(10.0, 3277))  # ≈ -20 dBFS
+    assert e.rms_db(MIC, 1.0, 2.0) == pytest.approx(-20.0, abs=0.2)
+    assert e.rms_db(MIC, 9.5, 10.5) is None  # not covered yet
+    assert e.rms_db(SYS, 1.0, 2.0) is None  # other track empty
+    e.add(MIC, 10.0, tone(1.0, 3277))
+    assert e.rms_db(MIC, 9.5, 10.5) is not None
+
+
+def test_bleed_dropped_when_system_louder_and_same_words():
+    e = _buf(mic_amp=800, sys_amp=6400)  # system +18 dB
+    mic = [TimedSegment(1.0, 3.0, "let's push the launch to thursday")]
+    sys = [TimedSegment(1.1, 3.1, "let's push the launch to Thursday")]
+    out, deferred = attribute(mic, sys, e, AttributionConfig())
+    assert [(s.source.value, s.text) for s in out] == [
+        ("them", "let's push the launch to Thursday")
+    ]
+    assert not deferred[MIC] and not deferred[SYS]
+
+
+def test_genuine_me_kept_when_mic_louder():
+    e = _buf(mic_amp=6400, sys_amp=800)
+    mic = [TimedSegment(1.0, 3.0, "sounds good to me")]
+    sys = [TimedSegment(1.0, 3.0, "sounds good to me")]  # improbable echo, mic wins
+    out, _ = attribute(mic, sys, e, AttributionConfig())
+    assert [s.source.value for s in out] == ["me"]
+
+
+def test_overlap_talk_both_kept_when_words_differ():
+    e = _buf(mic_amp=800, sys_amp=6400)
+    mic = [TimedSegment(1.0, 3.0, "wait I disagree")]
+    sys = [TimedSegment(1.0, 3.0, "and the budget is approved")]
+    out, _ = attribute(mic, sys, e, AttributionConfig())
+    assert sorted(s.source.value for s in out) == ["me", "them"]
+
+
+def test_threshold_boundary():
+    e = _buf(mic_amp=1000, sys_amp=1900)  # ≈ +5.6 dB, under 6 dB
+    mic = [TimedSegment(1.0, 3.0, "same words here")]
+    sys = [TimedSegment(1.0, 3.0, "same words here")]
+    out, _ = attribute(mic, sys, e, AttributionConfig(bleed_db=6.0))
+    assert sorted(s.source.value for s in out) == ["me", "them"]  # not confident → keep both
+    out, _ = attribute(mic, sys, e, AttributionConfig(bleed_db=5.0))
+    assert [s.source.value for s in out] == ["them"]
+
+
+def test_uncovered_span_is_deferred_then_resolved():
+    e = EnergyBuffer()
+    e.add(MIC, 0.0, tone(10.0, 800))  # system track hasn't arrived
+    mic = [TimedSegment(1.0, 3.0, "hello there")]
+    out, deferred = attribute(mic, [], e, AttributionConfig())
+    assert out == [] and deferred[MIC] == mic
+    e.add(SYS, 0.0, tone(10.0, 100))
+    out, deferred = attribute(deferred[MIC], [], e, AttributionConfig())
+    assert [s.source.value for s in out] == ["me"] and not deferred[MIC]

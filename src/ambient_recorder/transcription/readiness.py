@@ -43,10 +43,17 @@ def _default_free_vram_mb() -> int | None:
     if not exe:
         return None
     try:
-        out = subprocess.run(
-            [exe, "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5, check=True,
-        ).stdout.strip().splitlines()[0]
+        out = (
+            subprocess.run(
+                [exe, "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=True,
+            )
+            .stdout.strip()
+            .splitlines()[0]
+        )
         return int(out)
     except (subprocess.SubprocessError, ValueError, IndexError):
         return None
@@ -78,6 +85,7 @@ class DefaultEngineFactory:
         readiness, choice = choose(self._probes)
         if choice is None:
             from ambient_recorder.transcription.protocols import EngineNotReadyError
+
             raise EngineNotReadyError(readiness)
         from ambient_recorder.transcription.whisper_engine import WhisperEngine  # gate c
 
@@ -90,7 +98,8 @@ def choose(probes: Probes) -> tuple[TranscriptionReadiness, tuple[str, str, str]
     """Returns (readiness, (model, device, compute_type) | None)."""
     if not probes.installed():
         return TranscriptionReadiness(
-            status=ReadinessState.NOT_INSTALLED, ready=False,
+            status=ReadinessState.NOT_INSTALLED,
+            ready=False,
             reason="transcription extra not installed: pip install -e '.[transcription]'",
         ), None
     free = probes.free_vram_mb()
@@ -100,12 +109,18 @@ def choose(probes: Probes) -> tuple[TranscriptionReadiness, tuple[str, str, str]
         if not probes.model_present(model):
             continue
         return TranscriptionReadiness(
-            status=ReadinessState.READY, ready=True, engine="faster-whisper",
-            model=f"{model}/{compute}/{device}", device=device,  # type: ignore[arg-type]
-            free_vram_mb=free, required_vram_mb=REQUIRED_VRAM_MB,
+            status=ReadinessState.READY,
+            ready=True,
+            engine="faster-whisper",
+            model=f"{model}/{compute}/{device}",
+            device=device,  # type: ignore[arg-type]
+            free_vram_mb=free,
+            required_vram_mb=REQUIRED_VRAM_MB,
         ), (model, device, compute)
     return TranscriptionReadiness(
-        status=ReadinessState.NOT_READY, ready=False,
-        free_vram_mb=free, required_vram_mb=REQUIRED_VRAM_MB,
+        status=ReadinessState.NOT_READY,
+        ready=False,
+        free_vram_mb=free,
+        required_vram_mb=REQUIRED_VRAM_MB,
         reason=f"model_missing: run `{FETCH_CMD}` (data/models/ has no usable model)",
     ), None

@@ -12,7 +12,6 @@ from __future__ import annotations
 import heapq
 import itertools
 import threading
-import time
 import wave
 from dataclasses import dataclass, field
 
@@ -23,8 +22,8 @@ from ambient_recorder.models.transcript import (
     JobState,
     NewSegment,
     ReadinessState,
-    StatusFrame,
     SegmentFrame,
+    StatusFrame,
     Transcript,
     TranscriptionJob,
     TranscriptMode,
@@ -83,15 +82,22 @@ class _LiveSession:
 
 
 class TranscriptionWorker:
-    def __init__(self, factory: EngineFactory, store: SqliteTranscriptStore,
-                 chunk_store: ChunkStore, stream: SegmentStream, settings: Settings):
+    def __init__(
+        self,
+        factory: EngineFactory,
+        store: SqliteTranscriptStore,
+        chunk_store: ChunkStore,
+        stream: SegmentStream,
+        settings: Settings,
+    ):
         self.factory = factory
         self.store = store
         self.chunk_store = chunk_store
         self.stream = stream
         self.settings = settings
-        self.cfg = AttributionConfig(bleed_db=settings.bleed_db,
-                                     overlap_ratio=settings.overlap_ratio)
+        self.cfg = AttributionConfig(
+            bleed_db=settings.bleed_db, overlap_ratio=settings.overlap_ratio
+        )
         self._engine: SpeechEngine | None = None
         self._engine_lock = threading.Lock()
         self._q: list[_Item] = []
@@ -139,10 +145,16 @@ class TranscriptionWorker:
     # -- on-demand -----------------------------------------------------------
 
     def request_on_demand(self, session_id: str) -> Transcript:
-        t = Transcript(session_id=session_id, mode=TranscriptMode.ON_DEMAND,
-                       state=TranscriptState.PENDING)
-        job = TranscriptionJob(transcript_id=t.id, session_id=session_id,
-                               mode=TranscriptMode.ON_DEMAND, state=JobState.QUEUED, priority=1)
+        t = Transcript(
+            session_id=session_id, mode=TranscriptMode.ON_DEMAND, state=TranscriptState.PENDING
+        )
+        job = TranscriptionJob(
+            transcript_id=t.id,
+            session_id=session_id,
+            mode=TranscriptMode.ON_DEMAND,
+            state=JobState.QUEUED,
+            priority=1,
+        )
         self.store.create_transcript(t, job)
         self._push(_Item(1, next(self._counter), "on_demand_step", session_id, transcript_id=t.id))
         return t
@@ -153,8 +165,15 @@ class TranscriptionWorker:
         seen = set()
         while job is not None and job.transcript_id not in seen:
             seen.add(job.transcript_id)
-            self._push(_Item(1, next(self._counter), "on_demand_step", job.session_id,
-                             transcript_id=job.transcript_id))
+            self._push(
+                _Item(
+                    1,
+                    next(self._counter),
+                    "on_demand_step",
+                    job.session_id,
+                    transcript_id=job.transcript_id,
+                )
+            )
             job = None  # one step per job; the step re-enqueues itself
 
     # -- internals -----------------------------------------------------------
@@ -170,9 +189,15 @@ class TranscriptionWorker:
             jlog("transcription_skipped", session_id=session_id, reason="not_installed")
             return  # analyze C1: capture-only install → state none, no row
         t = Transcript(session_id=session_id, mode=TranscriptMode.LIVE, state=TranscriptState.LIVE)
-        job = TranscriptionJob(transcript_id=t.id, session_id=session_id,
-                               mode=TranscriptMode.LIVE, state=JobState.RUNNING, priority=0,
-                               started_at=utcnow())
+        job = TranscriptionJob(
+            transcript_id=t.id,
+            session_id=session_id,
+            mode=TranscriptMode.LIVE,
+            state=JobState.RUNNING,
+            priority=0,
+            started_at=utcnow(),
+            lag_s=0.0,
+        )
         if readiness.status != ReadinessState.READY:
             t.state = TranscriptState.FAILED
             t.failure_reason = f"engine_not_ready: {readiness.reason}"
@@ -193,13 +218,19 @@ class TranscriptionWorker:
             if self._engine is None:
                 self._engine = self.factory.load()
                 r = self.factory.readiness()
-                jlog("engine_loaded", descriptor=self._engine.descriptor,
-                     model=r.model, device=r.device, free_vram_mb=r.free_vram_mb)
+                jlog(
+                    "engine_loaded",
+                    descriptor=self._engine.descriptor,
+                    model=r.model,
+                    device=r.device,
+                    free_vram_mb=r.free_vram_mb,
+                )
             return self._engine
 
     def _run(self) -> None:
         try:
             import os
+
             if hasattr(os, "nice"):
                 os.nice(5)  # below-normal priority where supported (research R6)
         except OSError:
@@ -244,8 +275,15 @@ class TranscriptionWorker:
         if live.stopping and live.outstanding == 0:
             self._finalise_live(item.session_id)
 
-    def _transcribe_chunk(self, live: _LiveSession, kind: SourceKind, meta: ChunkMeta,
-                          *, beam_size: int) -> None:
+    def _transcribe_chunk(
+        self,
+        live: _LiveSession,
+        kind: SourceKind,
+        meta: ChunkMeta,
+        *,
+        beam_size: int,
+        mode: str = "live",
+    ) -> None:
         engine = self._get_engine()
         with wave.open(meta.file_path, "rb") as w:
             pcm = w.readframes(w.getnframes())
@@ -256,8 +294,9 @@ class TranscriptionWorker:
 
         window_pcm = ts.tail_pcm + pcm
         window_start = ts.tail_start_s if ts.tail_pcm else chunk_start
-        raw = engine.transcribe(window_pcm, beam_size=beam_size,
-                                initial_prompt=f"track={kind.value}")
+        raw = engine.transcribe(
+            window_pcm, beam_size=beam_size, initial_prompt=f"track={kind.value};mode={mode}"
+        )
         # Keep only segments ending after what we've already emitted, and that
         # end inside this chunk (segments still running past its end wait for
         # the next window — pending tail).
@@ -270,7 +309,7 @@ class TranscriptionWorker:
             if e > chunk_end - 0.05 and not live.stopping:
                 continue  # straddles the boundary → will reappear whole next window
             cands.append(TimedSegment(s, e, r.text.strip()))
-        ts.tail_pcm = pcm[-int(OVERLAP_S * _BYTES_PER_S):]
+        ts.tail_pcm = pcm[-int(OVERLAP_S * _BYTES_PER_S) :]
         ts.tail_start_s = max(chunk_start, chunk_end - OVERLAP_S)
         ts.next_start_s = chunk_end
         live.last_chunk_end_s = max(live.last_chunk_end_s, chunk_end)
@@ -278,9 +317,17 @@ class TranscriptionWorker:
         cands = ts.pending + cands
         ts.pending = []
         self._attribute_and_emit(live, kind, cands)
+        # This chunk may have supplied the paired-track energy coverage that
+        # the OTHER track's deferred candidates were waiting for (analyze U2).
+        other = SourceKind.SYSTEM if kind == SourceKind.MIC else SourceKind.MIC
+        if live.tracks[other].pending:
+            retry = live.tracks[other].pending
+            live.tracks[other].pending = []
+            self._attribute_and_emit(live, other, retry)
 
-    def _attribute_and_emit(self, live: _LiveSession, kind: SourceKind,
-                            cands: list[TimedSegment]) -> None:
+    def _attribute_and_emit(
+        self, live: _LiveSession, kind: SourceKind, cands: list[TimedSegment]
+    ) -> None:
         if not cands:
             return
         mic = cands if kind == SourceKind.MIC else []
@@ -305,20 +352,28 @@ class TranscriptionWorker:
             )
             live.tracks[kind].emitted_until_s = max(live.tracks[kind].emitted_until_s, a.end_s)
             self.stream.publish(live.transcript_id, SegmentFrame(segment=seg))
-        jlog("segments_emitted", transcript_id=live.transcript_id, track=kind.value,
-             emitted=sum(1 for a in attributed if a.source.value == own_speaker),
-             deferred=len(deferred[kind]))
+        jlog(
+            "segments_emitted",
+            transcript_id=live.transcript_id,
+            track=kind.value,
+            emitted=sum(1 for a in attributed if a.source.value == own_speaker),
+            deferred=len(deferred[kind]),
+        )
 
-    def _recent_emitted(self, live: _LiveSession, kind: SourceKind,
-                        around: list[TimedSegment]) -> list[TimedSegment]:
+    def _recent_emitted(
+        self, live: _LiveSession, kind: SourceKind, around: list[TimedSegment]
+    ) -> list[TimedSegment]:
         if not around:
             return []
         lo = min(c.start_s for c in around) - 1.0
         hi = max(c.end_s for c in around) + 1.0
         speaker = "me" if kind == SourceKind.MIC else "them"
         segs = self.store.segments_after(live.transcript_id, -1)
-        return [TimedSegment(s.start_s, s.end_s, s.text) for s in segs
-                if s.source.value == speaker and s.start_s < hi and s.end_s > lo]
+        return [
+            TimedSegment(s.start_s, s.end_s, s.text)
+            for s in segs
+            if s.source.value == speaker and s.start_s < hi and s.end_s > lo
+        ]
 
     def _delivered_until(self, live: _LiveSession) -> float:
         return min(t.emitted_until_s for t in live.tracks.values()) if live.tracks else 0.0
@@ -332,9 +387,13 @@ class TranscriptionWorker:
                 # Backlog still draining (FR-013): report finalising, wait.
                 self.store.update_job(live.transcript_id, state=JobState.FINALISING)
                 self.store.set_state(live.transcript_id, TranscriptState.FINALISING)
-                self.stream.publish(live.transcript_id,
-                                    StatusFrame(state=TranscriptState.FINALISING,
-                                                lag_s=live.last_chunk_end_s - self._delivered_until(live)))
+                self.stream.publish(
+                    live.transcript_id,
+                    StatusFrame(
+                        state=TranscriptState.FINALISING,
+                        lag_s=live.last_chunk_end_s - self._delivered_until(live),
+                    ),
+                )
                 return
             del self._live[session_id]
         # Flush any pending candidates regardless of paired-track coverage.
@@ -343,16 +402,23 @@ class TranscriptionWorker:
                 for c in ts.pending:
                     seg = self.store.append_segment(
                         live.transcript_id,
-                        NewSegment(source=("me" if kind == SourceKind.MIC else "them"),  # type: ignore[arg-type]
-                                   start_s=c.start_s, end_s=c.end_s, text=c.text))
+                        NewSegment(
+                            source=("me" if kind == SourceKind.MIC else "them"),  # type: ignore[arg-type]
+                            start_s=c.start_s,
+                            end_s=c.end_s,
+                            text=c.text,
+                        ),
+                    )
                     self.stream.publish(live.transcript_id, SegmentFrame(segment=seg))
                 ts.pending = []
         now = utcnow()
-        self.store.set_state(live.transcript_id, TranscriptState.COMPLETED, final=True,
-                             finalised_at=now)
+        self.store.set_state(
+            live.transcript_id, TranscriptState.COMPLETED, final=True, finalised_at=now
+        )
         self.store.update_job(live.transcript_id, state=JobState.COMPLETED, ended_at=now, lag_s=0.0)
-        self.stream.publish(live.transcript_id,
-                            StatusFrame(state=TranscriptState.COMPLETED, lag_s=0.0, final=True))
+        self.stream.publish(
+            live.transcript_id, StatusFrame(state=TranscriptState.COMPLETED, lag_s=0.0, final=True)
+        )
         self.stream.close(live.transcript_id)
         jlog("transcription_finalised", session_id=session_id, transcript_id=live.transcript_id)
 
@@ -361,12 +427,17 @@ class TranscriptionWorker:
             self._live.pop(session_id, None)
         now = utcnow()
         self.store.set_state(live.transcript_id, TranscriptState.FAILED, failure_reason=reason)
-        self.store.update_job(live.transcript_id, state=JobState.FAILED, ended_at=now,
-                              failure_reason=reason)
+        self.store.update_job(
+            live.transcript_id, state=JobState.FAILED, ended_at=now, failure_reason=reason
+        )
         self.stream.publish(live.transcript_id, StatusFrame(state=TranscriptState.FAILED))
         self.stream.close(live.transcript_id)
-        jlog("transcription_failed", session_id=session_id, transcript_id=live.transcript_id,
-             reason=reason)
+        jlog(
+            "transcription_failed",
+            session_id=session_id,
+            transcript_id=live.transcript_id,
+            reason=reason,
+        )
 
     # -- on-demand path -----------------------------------------------------
 
@@ -382,50 +453,79 @@ class TranscriptionWorker:
             total = sum(len(v) for v in inv.values())
             state = _LiveSession(transcript_id=item.transcript_id)
             self._od_state[item.transcript_id] = (state, inv, 0)
-            self.store.update_job(item.transcript_id, state=JobState.RUNNING,
-                                  started_at=utcnow(), total_chunks=total, progress_chunks=0)
-            jlog("transcription_started", session_id=item.session_id,
-                 transcript_id=item.transcript_id, mode="on_demand", total_chunks=total)
+            self.store.update_job(
+                item.transcript_id,
+                state=JobState.RUNNING,
+                started_at=utcnow(),
+                total_chunks=total,
+                progress_chunks=0,
+            )
+            jlog(
+                "transcription_started",
+                session_id=item.session_id,
+                transcript_id=item.transcript_id,
+                mode="on_demand",
+                total_chunks=total,
+            )
         state, inv, idx = self._od_state[item.transcript_id]
         # Interleave tracks in seq order so energy coverage stays paired.
-        order = sorted(((c.seq, k, c) for k, cs in inv.items() for c in cs),
-                       key=lambda x: (x[0], x[1].value))
+        order = sorted(
+            ((c.seq, k, c) for k, cs in inv.items() for c in cs), key=lambda x: (x[0], x[1].value)
+        )
         if idx >= len(order):
             state.stopping = True
             self._finish_on_demand(item, state)
             return
         _, kind, meta = order[idx]
         try:
-            self._transcribe_chunk(state, kind, meta, beam_size=5)
+            self._transcribe_chunk(state, kind, meta, beam_size=5, mode="on_demand")
         except (EngineError, EngineNotReadyError) as e:
             self._od_state.pop(item.transcript_id, None)
             now = utcnow()
-            self.store.set_state(item.transcript_id, TranscriptState.FAILED,
-                                 failure_reason=f"engine_error: {e}")
-            self.store.update_job(item.transcript_id, state=JobState.FAILED, ended_at=now,
-                                  failure_reason=f"engine_error: {e}")
+            self.store.set_state(
+                item.transcript_id, TranscriptState.FAILED, failure_reason=f"engine_error: {e}"
+            )
+            self.store.update_job(
+                item.transcript_id,
+                state=JobState.FAILED,
+                ended_at=now,
+                failure_reason=f"engine_error: {e}",
+            )
             jlog("transcription_failed", transcript_id=item.transcript_id, reason=str(e))
             return
         idx += 1
         self._od_state[item.transcript_id] = (state, inv, idx)
         self.store.update_job(item.transcript_id, progress_chunks=idx)
-        self._push(_Item(1, next(self._counter), "on_demand_step", item.session_id,
-                         transcript_id=item.transcript_id))
+        self._push(
+            _Item(
+                1,
+                next(self._counter),
+                "on_demand_step",
+                item.session_id,
+                transcript_id=item.transcript_id,
+            )
+        )
 
     def _finish_on_demand(self, item: _Item, state: _LiveSession) -> None:
         for kind, ts in state.tracks.items():
             for c in ts.pending:
                 self.store.append_segment(
                     item.transcript_id,
-                    NewSegment(source=("me" if kind == SourceKind.MIC else "them"),  # type: ignore[arg-type]
-                               start_s=c.start_s, end_s=c.end_s, text=c.text))
+                    NewSegment(
+                        source=("me" if kind == SourceKind.MIC else "them"),  # type: ignore[arg-type]
+                        start_s=c.start_s,
+                        end_s=c.end_s,
+                        text=c.text,
+                    ),
+                )
             ts.pending = []
         self._od_state.pop(item.transcript_id, None)
         now = utcnow()
         engine = self._engine.descriptor if self._engine else None
         if engine:
             self.store.set_engine(item.transcript_id, engine.split(" ")[0], engine)
-        self.store.set_state(item.transcript_id, TranscriptState.COMPLETED, final=True,
-                             finalised_at=now)
+        self.store.set_state(
+            item.transcript_id, TranscriptState.COMPLETED, final=True, finalised_at=now
+        )
         self.store.update_job(item.transcript_id, state=JobState.COMPLETED, ended_at=now)
         jlog("transcription_finalised", transcript_id=item.transcript_id, mode="on_demand")
