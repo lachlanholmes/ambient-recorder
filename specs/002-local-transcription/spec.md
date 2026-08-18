@@ -13,6 +13,10 @@
 ### Session 2026-08-18
 
 - Q: When does transcription run — on-demand, automatically on session completion, or live during recording? → A: **Live during recording**, with streaming partial transcripts; the transcript grows while the meeting is happening. Completed/interrupted/legacy sessions are additionally transcribable on demand (US3).
+- Q: What happens to the live transcript when lag exceeds the ≤ 10 s bound? → A: **Never skip audio** — the transcript stays complete but late; lag grows, is reported, and shrinks when load eases; finalisation waits for the backlog to drain (may exceed SC-007's 30 s under sustained overload, visibly, in `finalising`).
+- Q: When an on-demand pass runs on a session that already has a live transcript, what happens to the live one? → A: **Supersede but keep** — the on-demand result becomes the session's current transcript; the prior live transcript is retained (readable on request, marked superseded) but not returned by default. Nothing is destroyed.
+- Q: Which GPU co-residents must the VRAM plan account for? → A: **Reserve for co-residency** — STT must fit alongside a quantised 3–4B LLM per the constitution's default assumption (~3–4 GB reserved for the future assistant), so that feature needs no re-planning.
+- Q: What does a consumer that connects or reconnects mid-session receive on the live stream? → A: **Snapshot + tail** — the client fetches the transcript so far, then subscribes from a cursor (the last segment it saw); the stream delivers exactly the segments after that cursor, so reconnects are lossless and duplicate-free.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -99,7 +103,9 @@ request transcription, and verify a normal, complete transcript results.
 
 1. **Given** any stored non-active session with audio on disk, **When**
    the user requests transcription, **Then** a complete transcript is
-   produced with visible progress, replacing any partial live transcript.
+   produced with visible progress and becomes the session's current
+   transcript; any earlier (e.g. live) transcript is kept, marked
+   superseded, and still readable on request.
 2. **Given** an on-demand transcription that failed, **When** the user
    requests it again, **Then** the system retries from scratch rather
    than refusing forever, and the session's audio is untouched.
@@ -146,10 +152,12 @@ budget and captures cleanly.
 - Non-speech audio (music, notification chimes): may yield empty or garbage
   segments; the transcript MUST NOT fail outright, and silence/noise spans
   produce no text.
-- Live transcription falls behind real time (machine under load): lag is
-  reported honestly; the transcript catches up when load eases; audio is
-  never dropped to save time — chunks already on disk remain the fallback
-  input for an on-demand pass (US3).
+- Live transcription falls behind real time (machine under load): audio
+  is never skipped — every utterance is still transcribed, just later;
+  lag is reported honestly and shrinks when load eases. If the session
+  stops with a backlog, the state stays `finalising` until the backlog
+  drains, so `completed` always means the transcript is whole (SC-007's
+  30 s is the normal-load target, not a cap under sustained overload).
 - Live transcription fails mid-session (e.g. speech engine crash):
   recording continues unaffected; status shows `failed`; the completed
   session remains fully transcribable on demand.
@@ -162,6 +170,9 @@ budget and captures cleanly.
   silently abandoned in a `live` state.
 - Recorder restart mid on-demand job: the job is restarted or resumed
   automatically; it is never silently abandoned in `running`.
+- Live stream consumer disconnects and reconnects (UI reload, network
+  blip on localhost): resubscribing from its last-seen cursor yields
+  exactly the missed segments — no gap, no duplicate.
 - Non-English speech: v1 targets the user's primary language (English);
   other languages transcribe on a best-effort basis without failing.
 
@@ -194,8 +205,10 @@ budget and captures cleanly.
   session's audio or metadata.
 - **FR-007**: Any stored non-active session with surviving audio —
   including `interrupted` sessions and sessions recorded before this
-  feature — MUST be transcribable on demand; an on-demand result replaces
-  any partial live transcript for that session.
+  feature — MUST be transcribable on demand. An on-demand result becomes
+  the session's *current* transcript; any prior transcript (e.g. the live
+  one) is retained, marked superseded, readable on explicit request, and
+  never destroyed.
 - **FR-008**: Transcription MUST NOT violate feature 001's recording
   guarantees: session start ≤ 2 s and zero chunk loss while any
   transcription work exists (live, pending, running, or finalising).
@@ -209,11 +222,19 @@ budget and captures cleanly.
   non-active session is explicitly requested by the user.
 - **FR-011**: The system MUST deliver live segments to consumers as they
   are produced (push-style, not only on poll), so a UI can render the
-  transcript in near real time.
+  transcript in near real time. Subscription is cursor-based: a consumer
+  supplies the last segment it has seen (or none) and receives exactly
+  the segments after it, so a consumer that connects late or reconnects
+  after a drop can combine "transcript so far" + stream with no gaps and
+  no duplicates.
 - **FR-012**: When a live-transcribed session ends, the transcript MUST be
   finalised (all captured audio up to the stop accounted for) before the
   state becomes `completed`; consumers can distinguish "still finalising"
   from "done".
+- **FR-013**: Live transcription MUST NOT skip or drop audio to reduce
+  lag. Under overload the transcript becomes late, never incomplete; the
+  live result for a session is therefore content-equivalent to what an
+  on-demand pass over the same audio would produce.
 
 ### Non-Functional Requirements
 
@@ -224,11 +245,13 @@ budget and captures cleanly.
 - **NFR-002**: On-demand transcription of a 60-minute session MUST
   complete in 15 minutes or less (≥ 4× real time), measured end-to-end.
 - **NFR-003**: Transcription MUST fit the constitution's VRAM budget:
-  everything it loads fits within 8 GB alongside planned co-residents,
-  with ≥ 1 GB headroom, with the arithmetic stated in the plan. Live
-  transcription runs co-resident with active capture, so its steady-state
-  CPU/RAM footprint is additive to feature 001's and MUST leave a live
-  video call unaffected.
+  everything it loads fits within 8 GB *together with a reserved
+  allocation for a quantised 3–4B LLM* (the constitution's default
+  co-resident, ~3–4 GB, for the future assistant feature), with ≥ 1 GB
+  headroom — arithmetic stated in the plan. Live transcription also runs
+  co-resident with active capture, so its steady-state CPU/RAM footprint
+  is additive to feature 001's and MUST leave a live video call
+  unaffected.
 - **NFR-004**: Stored transcript data for a session MUST be at most 5% of
   that session's audio size (text plus timing metadata is small).
 
@@ -238,12 +261,16 @@ budget and captures cleanly.
   mode (`live | on_demand`), state (`live | finalising | queued | running
   | completed | failed`), lag (live) or progress (on-demand), timestamps,
   failure reason; at most one active job per session.
-- **Transcript**: The durable result for one session — an ordered
-  collection of segments plus provenance (mode that produced it, when,
-  from which session) and a `final` flag.
-- **TranscriptSegment**: One attributed utterance — start/end time
-  (relative to session start), source (`me | them`), text; stable once
-  delivered.
+- **Transcript**: One durable transcription result for a session — an
+  ordered collection of segments plus provenance (mode that produced it,
+  when, from which session), a `final` flag, and a `superseded` flag. A
+  session may accumulate several transcripts over time (e.g. live, then
+  on-demand); exactly one is *current* (the newest non-failed), and only
+  the current one is returned by default.
+- **TranscriptSegment**: One attributed utterance — a monotonically
+  increasing sequence number within its transcript (the stream cursor),
+  start/end time (relative to session start), source (`me | them`), text;
+  stable once delivered.
 
 ## Out of Scope *(this feature)*
 
