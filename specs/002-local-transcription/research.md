@@ -67,10 +67,11 @@ frozen.
   (stable-once-delivered, FR-002). Chunks queue in order; overload grows
   the queue and the reported lag; nothing is dropped (FR-013).
 - **Rationale**: 10 s chunk cadence gives ~10–13 s worst-case lag at
-  steady state (chunk finalises → transcribed within ~1–2 s on GPU) —
-  inside NFR-001's ≤ 10 s target measured to segment delivery *for
-  utterances that ended before the chunk boundary*, and honest that
-  utterances straddling a boundary land ~one chunk later. Reusing the
+  steady state (chunk finalises → transcribed within ~1–2 s on GPU) for
+  utterances that ended before the chunk boundary, and ~one chunk more
+  for utterances straddling a boundary — inside NFR-001's ≤ 15 s p95
+  (relaxed from 10 s at analyze-time precisely to make this design
+  honest rather than aspirational). Reusing the
   chunk cadence avoids a second audio path or shared buffers with the
   capture engine (constitution VII), and makes live and on-demand paths
   content-equivalent (FR-013).
@@ -95,6 +96,17 @@ frozen.
   does not occur physically, so the symmetric check is cheap insurance).
   Otherwise both are kept (genuine overlap talk). Thresholds live in one
   config block and are validated in the manual accuracy test.
+- **Where energy comes from** (analyze finding U2): the two tracks'
+  chunks reach the worker at different moments and raw audio is not
+  retained after transcription, so the worker maintains a per-track
+  **energy ring buffer** — RMS at 100 ms resolution over the last ~30 s
+  (a few KB), populated when each chunk arrives, before inference.
+  `attribute()` reads both tracks' energy for a segment's span from this
+  buffer, never from raw audio. A candidate segment whose paired-track
+  window has not yet arrived waits in the pending tail until it does
+  (bounded by one chunk, so it costs at most one chunk of lag, already
+  inside NFR-001). On-demand mode fills the buffer identically as it
+  walks stored chunks in order.
 - **Rationale**: Field-verified bleed is ~¼–½ volume (−6 to −12 dB), so
   the energy ratio alone is a strong signal; the token-overlap guard
   prevents dropping a genuine `me` utterance that merely coincides with

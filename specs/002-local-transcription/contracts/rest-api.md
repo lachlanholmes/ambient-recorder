@@ -20,7 +20,11 @@ in its own contract commit.
 - **200** → `TranscriptResponse`: transcript metadata (id, mode, state,
   final, model) + `segments: [TranscriptSegment…]` ordered by
   `(start_s, seq)` + `job: {state, lag_s, progress_chunks, total_chunks,
-  failure_reason}`. Query `?after=<seq>` returns only segments with
+  failure_reason}` + `pending_job: {transcript_id, state, progress_chunks,
+  total_chunks} | null` — the in-flight on-demand attempt, if any, so a
+  client can show "re-transcribing… 40%" while still displaying the
+  current (e.g. live) transcript. "Current" = newest transcript that is
+  neither `failed` nor `pending`. Query `?after=<seq>` returns only segments with
   `seq > after` (same semantics as the stream cursor).
 - **404** `session_not_found`; **404** `transcript_not_found` when the
   session has no transcript at all (legacy session, never transcribed).

@@ -34,11 +34,20 @@ class EngineFactory(Protocol):
 ## Attribution (pure function contract, `transcription/attribution.py`)
 
 ```python
+class EnergyBuffer:
+    """Per-track RMS at 100 ms resolution over a rolling ~30 s window.
+    add(track, start_s, pcm16k_mono) — called on chunk arrival.
+    rms_db(track, start_s, end_s) -> float | None — None if the span is
+    not (yet) fully covered for that track."""
+
 def attribute(mic: list[TimedSegment], system: list[TimedSegment],
-              mic_energy: EnergyFn, system_energy: EnergyFn,
-              cfg: AttributionConfig) -> list[AttributedSegment]:
+              energy: EnergyBuffer, cfg: AttributionConfig
+              ) -> tuple[list[AttributedSegment], list[TimedSegment]]:
     """Merges the two tracks' candidate segments into one chronological
     list with source me/them, applying the bleed rule (research R4).
+    Returns (attributed, deferred): `deferred` are candidates whose
+    paired-track energy span is not yet covered — the caller keeps them
+    in the pending tail and resubmits them with the next chunk.
     Deterministic; no I/O; unit-tested with synthetic inputs."""
 ```
 

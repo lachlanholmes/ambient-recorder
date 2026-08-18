@@ -38,7 +38,7 @@ measured 0 MiB idle 2026-08-18)
 
 **Project Type**: Single project — extends the existing local web service
 
-**Performance Goals**: live lag ≤ 10 s p95, throughput ≥ 1× real time on
+**Performance Goals**: live lag ≤ 15 s p95 (utterance end → delivery), throughput ≥ 1× real time on
 two tracks over 2 h (NFR-001); on-demand ≥ 4× real time (NFR-002);
 finalise ≤ 30 s under normal load (SC-007)
 

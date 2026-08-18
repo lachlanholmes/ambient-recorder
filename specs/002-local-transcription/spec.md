@@ -13,7 +13,7 @@
 ### Session 2026-08-18
 
 - Q: When does transcription run — on-demand, automatically on session completion, or live during recording? → A: **Live during recording**, with streaming partial transcripts; the transcript grows while the meeting is happening. Completed/interrupted/legacy sessions are additionally transcribable on demand (US3).
-- Q: What happens to the live transcript when lag exceeds the ≤ 10 s bound? → A: **Never skip audio** — the transcript stays complete but late; lag grows, is reported, and shrinks when load eases; finalisation waits for the backlog to drain (may exceed SC-007's 30 s under sustained overload, visibly, in `finalising`).
+- Q: What happens to the live transcript when lag exceeds the NFR-001 bound? → A: **Never skip audio** — the transcript stays complete but late; lag grows, is reported, and shrinks when load eases; finalisation waits for the backlog to drain (may exceed SC-007's 30 s under sustained overload, visibly, in `finalising`).
 - Q: When an on-demand pass runs on a session that already has a live transcript, what happens to the live one? → A: **Supersede but keep** — the on-demand result becomes the session's current transcript; the prior live transcript is retained (readable on request, marked superseded) but not returned by default. Nothing is destroyed.
 - Q: Which GPU co-residents must the VRAM plan account for? → A: **Reserve for co-residency** — STT must fit alongside a quantised 3–4B LLM per the constitution's default assumption (~3–4 GB reserved for the future assistant), so that feature needs no re-planning.
 - Q: What does a consumer that connects or reconnects mid-session receive on the live stream? → A: **Snapshot + tail** — the client fetches the transcript so far, then subscribes from a cursor (the last segment it saw); the stream delivers exactly the segments after that cursor, so reconnects are lossless and duplicate-free.
@@ -43,7 +43,7 @@ correctly attributed.
 1. **Given** an active session with speech occurring, **When** the user
    observes the live transcript, **Then** each spoken utterance appears
    as a segment (start/end time, text, `me`/`them` attribution) within
-   the latency bound (SC-002) after it was spoken.
+   the latency bound (SC-002, ≤ 15 s p95) after it ended.
 2. **Given** an active session, **When** the user requests the transcript
    so far, **Then** they receive every segment produced to that point in
    chronological order, plus an indication that it is still growing.
@@ -240,8 +240,12 @@ budget and captures cleanly.
 
 - **NFR-001**: Live transcription MUST keep up with real time on the
   target hardware: steady-state lag (utterance spoken → segment
-  delivered) ≤ 10 s, and lag MUST NOT grow without bound over a 2-hour
-  session (throughput ≥ 1× real time for two tracks).
+  delivered) ≤ 15 s at p95, and lag MUST NOT grow without bound over a
+  2-hour session (throughput ≥ 1× real time for two tracks). (Relaxed
+  from 10 s on 2026-08-18: v1 rides the 10 s durable-chunk cadence so
+  live transcription stays decoupled from capture — constitution VII;
+  an utterance straddling a chunk boundary lands one chunk later.
+  Sub-second streaming is the named upgrade path.)
 - **NFR-002**: On-demand transcription of a 60-minute session MUST
   complete in 15 minutes or less (≥ 4× real time), measured end-to-end.
 - **NFR-003**: Transcription MUST fit the constitution's VRAM budget:
@@ -296,8 +300,8 @@ budget and captures cleanly.
   ≥ 90% of utterances carry the correct `me`/`them` attribution —
   including passages where bleed makes speech audible on both tracks.
 - **SC-002**: During a live session on the target hardware, ≥ 95% of
-  utterances appear in the transcript within 10 seconds of being spoken,
-  and lag does not trend upward over a 2-hour session.
+  utterances appear in the transcript within 15 seconds of the utterance
+  ending, and lag does not trend upward over a 2-hour session.
 - **SC-003**: A 60-minute stored session yields its complete on-demand
   transcript within 15 minutes of the job starting.
 - **SC-004**: A live-transcribed 2-hour session records with zero lost
@@ -310,7 +314,9 @@ budget and captures cleanly.
 - **SC-006**: A session from before this feature transcribes successfully
   on demand with no manual data migration.
 - **SC-007**: When a session stops, its transcript reaches `completed`
-  (final, all captured audio accounted for) within 30 seconds of the stop.
+  (final, all captured audio accounted for) within 30 seconds of the stop
+  under normal load (under sustained overload the backlog drains first —
+  FR-013 — visibly in `finalising`).
 
 ## Assumptions
 
@@ -318,11 +324,16 @@ budget and captures cleanly.
   audio track may contain multiple remote voices all labelled `them`.
 - Live transcription starts automatically with every recording session
   (decision 2026-08-18); there is no per-session opt-out in v1 — a
-  session is always transcribed live. If that becomes undesirable, an
-  opt-out is a small follow-up.
+  session is always transcribed live *when transcription is installed*.
+  On a capture-only install (transcription components absent) live mode
+  is skipped entirely and sessions have transcription state `none`,
+  exactly like feature-001-era sessions — not a `failed` transcript per
+  session. Installed-but-not-ready (model missing, engine error) IS a
+  visible `failed`, because the user set it up and expects it to work.
+  If auto-start becomes undesirable, an opt-out is a small follow-up.
 - Live segments are delivered at utterance granularity (a few seconds of
-  speech), not word-by-word; "≤ 10 s lag" is measured to segment
-  delivery.
+  speech), not word-by-word; the lag bound is measured from utterance
+  end to segment delivery.
 - English is the primary target language.
 - Transcripts and the live stream are consumed via the local API (same
   pattern as feature 001); a human-readable export/UI is future work.

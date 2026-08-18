@@ -7,14 +7,16 @@ tables in the existing feature 001 database (`storage/transcripts.py`).
 
 One transcription *attempt* for a session. Insert-only versioning:
 several may exist per session; the **current** one is the newest whose
-state is not `failed`.
+state is neither `failed` nor `pending` — so a queued or running
+on-demand attempt does not displace an existing transcript until it
+succeeds, and a failed attempt never displaces anything.
 
 | Field | Type | Rules |
 |-------|------|-------|
 | id | str (ULID) | |
 | session_id | str | FK → sessions |
 | mode | enum `live \| on_demand` | |
-| state | enum `live \| finalising \| completed \| interrupted_live \| failed` | See state machine |
+| state | enum `pending \| live \| finalising \| completed \| interrupted_live \| failed` | See state machine; `pending` = on-demand attempt whose job is queued or running |
 | final | bool | True iff all captured audio is accounted for (`completed` only) |
 | superseded | bool | Derived on read: true iff a newer non-failed transcript exists for the session |
 | engine | str | e.g. `faster-whisper` |
@@ -31,8 +33,8 @@ live ──session stop──► finalising ──backlog drained──► compl
  ├──engine error──► failed
  └──recorder restart while session gone──► interrupted_live (segments kept)
 
-on_demand:  (job running) ──done──► completed (final=true)
-                          └──error─► failed
+on_demand:  pending ──job done──► completed (final=true)   [becomes current]
+                    └──job error─► failed                  [never current]
 ```
 
 - A `live` transcript is created atomically when its session starts
@@ -76,7 +78,8 @@ The scheduling record; one per transcript.
 
 | Field | Type |
 |-------|------|
-| ready | bool |
+| status | enum `ready \| not_ready \| not_installed` — `not_installed` = capture-only install, live mode skipped; `not_ready` = installed but unusable (model missing etc.), live transcripts fail visibly |
+| ready | bool (derived: status == ready) |
 | engine | str \| None |
 | model | str \| None (chosen per degradation) |
 | device | enum `cuda \| cpu` \| None |
