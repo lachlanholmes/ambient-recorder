@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ambient-recorder"
+version = "0.1.0"
+description = "Local-first ambient meeting recorder: mic + system audio capture sessions"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi~=0.115.0",
+    "uvicorn[standard]~=0.34.0",
+    "pydantic~=2.10.0",
+    "PyAudioWPatch~=0.2.12",
+    "soxr~=0.5.0",
+    "numpy~=2.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=8.3",
+    "httpx~=0.28.0",
+    "ruff~=0.9.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ambient_recorder"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/contract", "tests/unit", "tests/integration"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
