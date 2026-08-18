@@ -21,6 +21,13 @@ class Settings(BaseModel):
     host: str = "127.0.0.1"
     port: int = Field(default=8377, ge=1, le=65535)
     min_free_disk_mb: int = Field(default=2048, ge=0)
+    # feature 002 — attribution thresholds (research R4); tuned by manual accuracy test
+    bleed_db: float = Field(default=6.0, ge=0)
+    overlap_ratio: float = Field(default=0.6, ge=0, le=1)
+
+    @property
+    def models_dir(self) -> Path:
+        return self.data_root / "models"
 
     @field_validator("host")
     @classmethod
@@ -48,5 +55,7 @@ def load_settings() -> Settings:
         "host": os.environ.get("AMBREC_HOST"),
         "port": os.environ.get("AMBREC_PORT"),
         "min_free_disk_mb": os.environ.get("AMBREC_MIN_FREE_DISK_MB"),
+        "bleed_db": os.environ.get("AMBREC_BLEED_DB"),
+        "overlap_ratio": os.environ.get("AMBREC_OVERLAP_RATIO"),
     }
     return Settings(**{k: v for k, v in env.items() if v is not None})

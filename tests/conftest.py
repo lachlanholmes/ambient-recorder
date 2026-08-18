@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from ambient_recorder.config import Settings
 from ambient_recorder.main import create_app
 from tests.support.fake_capture import FakeCaptureProvider, FakeDeviceEnumerator
+from tests.support.fake_speech import FakeEngineFactory, FakeSpeechEngine
 
 
 @pytest.fixture
@@ -24,8 +25,18 @@ def settings(tmp_path) -> Settings:
 
 
 @pytest.fixture
-def app(settings, fake_provider, enumerator):
-    return create_app(settings, fake_provider, enumerator)
+def fake_engine() -> FakeSpeechEngine:
+    return FakeSpeechEngine()
+
+
+@pytest.fixture
+def engine_factory(fake_engine) -> FakeEngineFactory:
+    return FakeEngineFactory(fake_engine)
+
+
+@pytest.fixture
+def app(settings, fake_provider, enumerator, engine_factory):
+    return create_app(settings, fake_provider, enumerator, engine_factory)
 
 
 @pytest.fixture

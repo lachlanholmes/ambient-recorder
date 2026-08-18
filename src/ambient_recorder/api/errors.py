@@ -12,6 +12,10 @@ from ambient_recorder.errors import (
     DiskLowError,
     SessionNotActiveError,
     SessionNotFoundError,
+    SessionStillActiveError,
+    TranscriptionAlreadyRunningError,
+    TranscriptionNotReadyError,
+    TranscriptNotFoundError,
 )
 from ambient_recorder.logging import jlog
 from ambient_recorder.models.api import ErrorBody, ErrorCode, ErrorResponse
@@ -47,6 +51,25 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(SessionNotActiveError)
     async def _not_active(request: Request, exc: SessionNotActiveError):
         return _envelope(409, ErrorCode.SESSION_NOT_ACTIVE, str(exc),
+                         {"session_id": exc.session_id})
+
+    @app.exception_handler(TranscriptNotFoundError)
+    async def _transcript_not_found(request: Request, exc: TranscriptNotFoundError):
+        return _envelope(404, ErrorCode.TRANSCRIPT_NOT_FOUND, str(exc), {"ref": exc.ref})
+
+    @app.exception_handler(TranscriptionNotReadyError)
+    async def _not_ready(request: Request, exc: TranscriptionNotReadyError):
+        return _envelope(503, ErrorCode.TRANSCRIPTION_NOT_READY, str(exc),
+                         {"reason": exc.reason})
+
+    @app.exception_handler(SessionStillActiveError)
+    async def _still_active(request: Request, exc: SessionStillActiveError):
+        return _envelope(409, ErrorCode.SESSION_STILL_ACTIVE, str(exc),
+                         {"session_id": exc.session_id})
+
+    @app.exception_handler(TranscriptionAlreadyRunningError)
+    async def _already_running(request: Request, exc: TranscriptionAlreadyRunningError):
+        return _envelope(409, ErrorCode.TRANSCRIPTION_ALREADY_RUNNING, str(exc),
                          {"session_id": exc.session_id})
 
     @app.exception_handler(RequestValidationError)

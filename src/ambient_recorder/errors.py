@@ -31,3 +31,30 @@ class SessionNotActiveError(Exception):
     def __init__(self, session_id: str):
         self.session_id = session_id
         super().__init__(f"Session is not active: {session_id}")
+
+
+# feature 002
+
+
+class TranscriptNotFoundError(Exception):
+    def __init__(self, ref: str):
+        self.ref = ref
+        super().__init__(f"No transcript for: {ref}")
+
+
+class TranscriptionNotReadyError(Exception):
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(f"Transcription is not ready: {reason}")
+
+
+class SessionStillActiveError(Exception):
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        super().__init__(f"Session is still recording (live mode owns it): {session_id}")
+
+
+class TranscriptionAlreadyRunningError(Exception):
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        super().__init__(f"An on-demand transcription is already queued/running: {session_id}")
