@@ -125,6 +125,7 @@ class _SourceWorker:
         )
         self.seq += 1
         self.duration_s += meta.duration_s
+        self.engine._notify_chunk(self.session_id, self.kind, meta)
         return True
 
 
@@ -152,6 +153,33 @@ class CaptureEngine:
         self._lock = threading.RLock()
         self._active: _ActiveState | None = None
         self.last_start_latency_s: float | None = None
+        self._chunk_observers: list = []
+        self._session_observers: list = []
+
+    # -- observers (constitution VII: observers can never hurt capture) ----
+
+    def add_chunk_observer(self, cb) -> None:
+        """cb(session_id, kind, ChunkMeta) — invoked on the writer thread
+        after the chunk row is committed. Must return quickly (enqueue)."""
+        self._chunk_observers.append(cb)
+
+    def add_session_observer(self, cb) -> None:
+        """cb(session_id, event) with event in started|stopped|finalized."""
+        self._session_observers.append(cb)
+
+    def _notify_chunk(self, session_id: str, kind: SourceKind, meta) -> None:
+        for cb in list(self._chunk_observers):
+            try:
+                cb(session_id, kind, meta)
+            except Exception as e:  # noqa: BLE001 — isolation is the point
+                jlog("chunk_observer_error", observer=repr(cb), error=repr(e))
+
+    def _notify_session(self, session_id: str, event: str) -> None:
+        for cb in list(self._session_observers):
+            try:
+                cb(session_id, event)
+            except Exception as e:  # noqa: BLE001
+                jlog("session_observer_error", observer=repr(cb), error=repr(e))
 
     # -- lifecycle --------------------------------------------------------
 
@@ -209,6 +237,7 @@ class CaptureEngine:
                              detail={"title": title})
             )
             jlog("session_started", session_id=session.id, title=title)
+            self._notify_session(session.id, "started")
             detail = self.metadata.get_session(session.id)
             assert detail is not None
             return detail
@@ -216,6 +245,7 @@ class CaptureEngine:
     def stop_session(self, session_id: str) -> SessionDetail:
         with self._lock:
             self._require_active(session_id)
+            self._notify_session(session_id, "stopped")
             self._end_all_sources(final_source_status="completed")
             self._finalize(session_id, EventType.STOPPED, {})
             detail = self.metadata.get_session(session_id)
@@ -292,6 +322,7 @@ class CaptureEngine:
             )
         jlog("session_finalized", session_id=session_id, duration_s=duration)
         self._active = None
+        self._notify_session(session_id, "finalized")
 
     def _note_first_frame(self) -> None:
         state = self._active
