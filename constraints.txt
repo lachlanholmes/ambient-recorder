@@ -1,0 +1,9 @@
+# Project-wide pins shared by two or more features (constitution,
+# Development Workflow). Feature-specific pins stay in that feature's plan.md.
+# Use: pip install -c constraints.txt -e ".[dev]"
+fastapi~=0.115.0
+uvicorn~=0.34.0
+pydantic~=2.10.0
+numpy~=2.2.0
+pytest~=8.3
+httpx~=0.28.0

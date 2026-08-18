@@ -11,6 +11,7 @@ build/
 
 # Recorder data (never commit captured audio or metadata)
 data/
+data/models/
 
 # Environment / secrets
 .env*

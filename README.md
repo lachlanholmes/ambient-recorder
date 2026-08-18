@@ -24,7 +24,7 @@ audio devices requires explicit human approval first. Until T019 lands,
 
 ```bash
 python -m venv .venv && source .venv/Scripts/activate
-pip install -e ".[dev]"
+pip install -c constraints.txt -e ".[dev]"
 pytest            # contract + unit + integration; never touches audio devices
 ruff check src tests
 ```
