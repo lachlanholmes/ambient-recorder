@@ -44,17 +44,31 @@ def _response(store, t: Transcript, after: int = -1) -> TranscriptResponse:
     if pending is not None and pending.id != t.id:
         pjob = store.get_job(pending.id)
         if pjob is not None:
-            pj = PendingJobInfo(transcript_id=pending.id, state=pjob.state,
-                                progress_chunks=pjob.progress_chunks,
-                                total_chunks=pjob.total_chunks)
+            pj = PendingJobInfo(
+                transcript_id=pending.id,
+                state=pjob.state,
+                progress_chunks=pjob.progress_chunks,
+                total_chunks=pjob.total_chunks,
+            )
     segs = store.segments_after(t.id, after)
     segs.sort(key=lambda s: (s.start_s, s.seq))
     return TranscriptResponse(
-        id=t.id, session_id=t.session_id, mode=t.mode, state=t.state, final=t.final,
-        model=t.model, segments=segs,
-        job=JobInfo(state=job.state, lag_s=job.lag_s, progress_chunks=job.progress_chunks,
-                    total_chunks=job.total_chunks, failure_reason=job.failure_reason)
-        if job else JobInfo(state="failed"),  # type: ignore[arg-type]
+        id=t.id,
+        session_id=t.session_id,
+        mode=t.mode,
+        state=t.state,
+        final=t.final,
+        model=t.model,
+        segments=segs,
+        job=JobInfo(
+            state=job.state,
+            lag_s=job.lag_s,
+            progress_chunks=job.progress_chunks,
+            total_chunks=job.total_chunks,
+            failure_reason=job.failure_reason,
+        )
+        if job
+        else JobInfo(state="failed"),  # type: ignore[arg-type]
         pending_job=pj,
     )
 
@@ -87,13 +101,12 @@ async def list_transcripts(request: Request, session_id: str):
     if await run_in_threadpool(meta.get_session, session_id) is None:
         raise SessionNotFoundError(session_id)
     return TranscriptListResponse(
-        transcripts=await run_in_threadpool(store.list_transcripts, session_id))
+        transcripts=await run_in_threadpool(store.list_transcripts, session_id)
+    )
 
 
-@router.get("/sessions/{session_id}/transcripts/{transcript_id}",
-            response_model=TranscriptResponse)
-async def get_transcript(request: Request, session_id: str, transcript_id: str,
-                         after: int = -1):
+@router.get("/sessions/{session_id}/transcripts/{transcript_id}", response_model=TranscriptResponse)
+async def get_transcript(request: Request, session_id: str, transcript_id: str, after: int = -1):
     store = _store(request)
     t = await run_in_threadpool(store.get_transcript, transcript_id)
     if t is None or t.session_id != session_id:
@@ -101,8 +114,9 @@ async def get_transcript(request: Request, session_id: str, transcript_id: str,
     return await run_in_threadpool(_response, store, t, after)
 
 
-@router.post("/sessions/{session_id}/transcribe", response_model=TranscriptionJobResponse,
-             status_code=202)
+@router.post(
+    "/sessions/{session_id}/transcribe", response_model=TranscriptionJobResponse, status_code=202
+)
 async def transcribe(request: Request, session_id: str):
     store, meta, worker = _store(request), _metadata(request), _worker(request)
     session = await run_in_threadpool(meta.get_session, session_id)

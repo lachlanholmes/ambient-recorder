@@ -16,9 +16,7 @@ class DiskLowError(Exception):
     def __init__(self, free_mb: int, required_mb: int):
         self.free_mb = free_mb
         self.required_mb = required_mb
-        super().__init__(
-            f"Free disk space too low: {free_mb} MB free, {required_mb} MB required"
-        )
+        super().__init__(f"Free disk space too low: {free_mb} MB free, {required_mb} MB required")
 
 
 class SessionNotFoundError(Exception):

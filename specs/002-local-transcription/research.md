@@ -61,6 +61,21 @@ frozen.
   upgrade if the scripted accuracy test (T038) favours it. Degradation
   thresholds below are relaxed to match the real numbers (medium needs
   ~1.5 GB free, not 3 GB).
+  **Throughput reality check (T033, 2026-08-19)**: the table above is
+  single-track; a session has two. On *meeting-density* speech (the
+  001 soak, ~4.75 segments per 15 s window vs ~2 in the clean slice
+  used for the table) `medium` beam 1 decodes at **6.8× single-track ≈
+  2.0× session-seconds**, and beam 5 at 3.2×/1.6×. Concatenating both
+  tracks into one call (1.3×) and `BatchedInferencePipeline` (1.3×) are
+  both *slower* — VAD efficiency is lost. The worker's end-to-end run on
+  the full 69.3-min soak measured **1.93×**, i.e. it sits at the
+  hardware ceiling; an earlier 0.9× run was an O(n²) SQLite read in the
+  bleed reference set (fixed: in-memory 30 s window). Decisions: on-
+  demand beam defaults to 1 (`AMBREC_ON_DEMAND_BEAM_SIZE` to raise);
+  NFR-002 amended to ≥ 2× with the original 4× recorded as a single-
+  track mis-estimate; `small` (18.6× single ≈ 7× two-track) documented
+  as the fast-backfill option. Live mode is unaffected: 1× required vs
+  ~2× available per session-second, plus GPU idle between chunks.
   Engineering notes from the install: ctranslate2 4.5 requires
   `setuptools<81` (pkg_resources), and its CUDA 12 build needs the
   **12.4-line** NVIDIA wheels (`cublas 12.4.5.8`, `cudnn 9.1.0.70`,

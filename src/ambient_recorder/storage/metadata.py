@@ -100,19 +100,30 @@ class SqliteMetadataStore:
                     self._db.execute(
                         "INSERT INTO sessions VALUES (?,?,?,?,?,?,?,?,?)",
                         (
-                            session.id, session.title, session.status.value,
-                            _iso(session.started_at), _iso(session.ended_at),
-                            session.duration_s, session.size_bytes,
-                            session.dir_path, _iso(session.created_at),
+                            session.id,
+                            session.title,
+                            session.status.value,
+                            _iso(session.started_at),
+                            _iso(session.ended_at),
+                            session.duration_s,
+                            session.size_bytes,
+                            session.dir_path,
+                            _iso(session.created_at),
                         ),
                     )
                     for s in sources:
                         self._db.execute(
                             "INSERT INTO capture_sources VALUES (?,?,?,?,?,?,?,?,?)",
                             (
-                                s.session_id, s.kind.value, s.device_id, s.device_label,
-                                s.native_rate_hz, s.persisted_format, s.status.value,
-                                _iso(s.ended_at), s.chunk_count,
+                                s.session_id,
+                                s.kind.value,
+                                s.device_id,
+                                s.device_label,
+                                s.native_rate_hz,
+                                s.persisted_format,
+                                s.status.value,
+                                _iso(s.ended_at),
+                                s.chunk_count,
                             ),
                         )
             except sqlite3.IntegrityError as e:
@@ -128,8 +139,12 @@ class SqliteMetadataStore:
             cur = self._db.execute(
                 "INSERT OR IGNORE INTO audio_chunks VALUES (?,?,?,?,?,?,?)",
                 (
-                    chunk.session_id, chunk.source_kind.value, chunk.seq,
-                    chunk.file_path, chunk.duration_s, chunk.size_bytes,
+                    chunk.session_id,
+                    chunk.source_kind.value,
+                    chunk.seq,
+                    chunk.file_path,
+                    chunk.duration_s,
+                    chunk.size_bytes,
                     _iso(chunk.written_at),
                 ),
             )
@@ -162,8 +177,12 @@ class SqliteMetadataStore:
         with self._lock, self._db:
             self._db.execute(
                 "INSERT INTO session_events VALUES (?,?,?,?)",
-                (event.session_id, _iso(event.at), event.type.value,
-                 json.dumps(event.detail, default=str)),
+                (
+                    event.session_id,
+                    _iso(event.at),
+                    event.type.value,
+                    json.dumps(event.detail, default=str),
+                ),
             )
 
     def finalize_session(
@@ -191,9 +210,7 @@ class SqliteMetadataStore:
 
     def get_session(self, session_id: str) -> SessionDetail | None:
         with self._lock:
-            row = self._db.execute(
-                "SELECT * FROM sessions WHERE id=?", (session_id,)
-            ).fetchone()
+            row = self._db.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
             if row is None:
                 return None
             sources = self._db.execute(
@@ -233,15 +250,18 @@ class SqliteMetadataStore:
 
     def active_sessions(self) -> list[Session]:
         with self._lock:
-            rows = self._db.execute(
-                "SELECT * FROM sessions WHERE status='active'"
-            ).fetchall()
+            rows = self._db.execute("SELECT * FROM sessions WHERE status='active'").fetchall()
         return [
             Session(
-                id=r["id"], title=r["title"], status=SessionStatus(r["status"]),
-                started_at=r["started_at"], ended_at=r["ended_at"],
-                duration_s=r["duration_s"], size_bytes=r["size_bytes"],
-                dir_path=r["dir_path"], created_at=r["created_at"],
+                id=r["id"],
+                title=r["title"],
+                status=SessionStatus(r["status"]),
+                started_at=r["started_at"],
+                ended_at=r["ended_at"],
+                duration_s=r["duration_s"],
+                size_bytes=r["size_bytes"],
+                dir_path=r["dir_path"],
+                created_at=r["created_at"],
             )
             for r in rows
         ]
@@ -257,9 +277,13 @@ class SqliteMetadataStore:
 
     def _summary(self, r: sqlite3.Row) -> SessionSummary:
         return SessionSummary(
-            id=r["id"], title=r["title"], status=SessionStatus(r["status"]),
-            started_at=r["started_at"], ended_at=r["ended_at"],
-            duration_s=r["duration_s"], size_bytes=r["size_bytes"],
+            id=r["id"],
+            title=r["title"],
+            status=SessionStatus(r["status"]),
+            started_at=r["started_at"],
+            ended_at=r["ended_at"],
+            duration_s=r["duration_s"],
+            size_bytes=r["size_bytes"],
         )
 
 
@@ -279,8 +303,11 @@ def reconcile_interrupted(meta: SqliteMetadataStore, chunks: ChunkStore) -> int:
             for c in found:
                 meta.record_chunk(
                     AudioChunk(
-                        session_id=session.id, source_kind=kind, seq=c.seq,
-                        file_path=c.file_path, duration_s=c.duration_s,
+                        session_id=session.id,
+                        source_kind=kind,
+                        seq=c.seq,
+                        file_path=c.file_path,
+                        duration_s=c.duration_s,
                         size_bytes=c.size_bytes,
                     )
                 )

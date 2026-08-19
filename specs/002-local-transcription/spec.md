@@ -247,7 +247,14 @@ budget and captures cleanly.
   an utterance straddling a chunk boundary lands one chunk later.
   Sub-second streaming is the named upgrade path.)
 - **NFR-002**: On-demand transcription of a 60-minute session MUST
-  complete in 15 minutes or less (≥ 4× real time), measured end-to-end.
+  complete in 30 minutes or less (≥ 2× real time, both tracks, measured
+  end-to-end). (Amended 2026-08-19 from ≥ 4×: the original figure was
+  written against a single-track mental model; measured on the target
+  GPU, `medium` decodes dense two-track meeting speech at a hardware
+  ceiling of ~2.0× — the worker achieves 1.93× on a 69-minute real
+  recording, i.e. no pipeline overhead to remove. Users who want faster
+  backfill can select `small` for on-demand (≈ 7× two-track) at an
+  accuracy cost — see research R2.)
 - **NFR-003**: Transcription MUST fit the constitution's VRAM budget:
   everything it loads fits within 8 GB *together with a reserved
   allocation for a quantised 3–4B LLM* (the constitution's default
@@ -303,7 +310,8 @@ budget and captures cleanly.
   utterances appear in the transcript within 15 seconds of the utterance
   ending, and lag does not trend upward over a 2-hour session.
 - **SC-003**: A 60-minute stored session yields its complete on-demand
-  transcript within 15 minutes of the job starting.
+  transcript within 30 minutes of the job starting (see NFR-002
+  amendment, 2026-08-19).
 - **SC-004**: A live-transcribed 2-hour session records with zero lost
   chunks; starting a recording session while an on-demand job runs
   succeeds within 2 seconds (feature 001's guarantees hold unchanged).

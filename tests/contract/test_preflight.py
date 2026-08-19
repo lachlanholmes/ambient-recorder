@@ -26,9 +26,7 @@ def test_missing_device_is_424_and_creates_nothing(settings):
 
 def test_both_missing_names_both(settings):
     provider = FakeCaptureProvider()
-    enumerator = FakeDeviceEnumerator(
-        provider, missing={SourceKind.MIC, SourceKind.SYSTEM}
-    )
+    enumerator = FakeDeviceEnumerator(provider, missing={SourceKind.MIC, SourceKind.SYSTEM})
     with TestClient(create_app(settings, provider, enumerator)) as client:
         r = client.post("/sessions", json={})
         assert r.status_code == 424

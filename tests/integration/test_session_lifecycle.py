@@ -15,11 +15,9 @@ from ambient_recorder.storage.chunks import FsChunkStore
 
 def test_full_lifecycle_chunks_metadata_duration(client, fake_provider, settings):
     sid = client.post("/sessions", json={"title": "lifecycle"}).json()["id"]
-    fake_provider.push_seconds(MIC_ID, 35.0)      # 3 full chunks + 5 s partial
+    fake_provider.push_seconds(MIC_ID, 35.0)  # 3 full chunks + 5 s partial
     fake_provider.push_seconds(SYSTEM_ID, 35.0)
-    detail = SessionDetail.model_validate(
-        client.post(f"/sessions/{sid}/stop").json()
-    )
+    detail = SessionDetail.model_validate(client.post(f"/sessions/{sid}/stop").json())
 
     assert detail.status == "completed"
     # Duration derives from audio length (35 s), never wall clock (~ms).

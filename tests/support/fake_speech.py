@@ -33,8 +33,9 @@ class FakeSpeechEngine:
     # The worker tells the fake which track it's about to transcribe (via
     # initial_prompt convention "track=<mic|system>") so scripts can be
     # per-track without changing the SpeechEngine contract.
-    def transcribe(self, pcm16k_mono: bytes, *, beam_size: int = 1,
-                   initial_prompt: str | None = None) -> list[RawSegment]:
+    def transcribe(
+        self, pcm16k_mono: bytes, *, beam_size: int = 1, initial_prompt: str | None = None
+    ) -> list[RawSegment]:
         parts = dict(kv.split("=", 1) for kv in (initial_prompt or "track=mic").split(";"))
         track = parts.get("track", "mic")
         with self._lock:
@@ -50,9 +51,12 @@ class FakeSpeechEngine:
 
 
 class FakeEngineFactory:
-    def __init__(self, engine: FakeSpeechEngine | None = None,
-                 status: ReadinessState = ReadinessState.READY,
-                 reason: str | None = None):
+    def __init__(
+        self,
+        engine: FakeSpeechEngine | None = None,
+        status: ReadinessState = ReadinessState.READY,
+        reason: str | None = None,
+    ):
         self.engine = engine or FakeSpeechEngine()
         self.status = status
         self.reason = reason
@@ -61,7 +65,8 @@ class FakeEngineFactory:
     def readiness(self) -> TranscriptionReadiness:
         ready = self.status == ReadinessState.READY
         return TranscriptionReadiness(
-            status=self.status, ready=ready,
+            status=self.status,
+            ready=ready,
             engine="fake-engine" if ready else None,
             model="test" if ready else None,
             device="cpu" if ready else None,

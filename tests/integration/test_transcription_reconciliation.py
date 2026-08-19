@@ -44,21 +44,34 @@ def test_orphaned_on_demand_is_requeued(
     fake_engine.script[("mic", 0)] = [seg(1.0, 2.0, "eventually")]
     with TestClient(create_app(settings, fake_provider, enumerator, engine_factory)) as c1:
         sid = c1.post("/sessions", json={}).json()["id"]
-        fake_provider.push_seconds(MIC_ID, 20.0)
-        fake_provider.push_seconds(SYSTEM_ID, 20.0)
-        assert wait_until(lambda: c1.get(f"/sessions/{sid}").json()["chunk_counts"]["mic"] >= 2)
+        fake_provider.push_seconds(MIC_ID, 60.0)  # 6 chunks/track → a real mid-flight window
+        fake_provider.push_seconds(SYSTEM_ID, 60.0)
+        assert wait_until(lambda: c1.get(f"/sessions/{sid}").json()["chunk_counts"]["mic"] >= 6)
         c1.post(f"/sessions/{sid}/stop")
         assert wait_until(
             lambda: c1.get(f"/sessions/{sid}/transcript").json()["state"] == "completed"
         )
-        fake_engine.delay_s = 10.0  # job will be mid-flight when we "crash"
+        # The on-demand run re-reads the chunks; the fake's per-track call index
+        # continues (live used mic idx 0–5), so script the dead run's first mic
+        # window (idx 6) to emit one segment, then make everything slow.
+        fake_engine.script[("mic", 6)] = [seg(1.0, 2.0, "eventually")]
+        fake_engine.delay_s = 0.3
         od = c1.post(f"/sessions/{sid}/transcribe").json()["transcript_id"]
         assert wait_until(
-            lambda: c1.get(f"/sessions/{sid}/transcripts/{od}").json()["job"]["state"] == "running"
+            lambda: len(c1.get(f"/sessions/{sid}/transcripts/{od}").json()["segments"]) >= 1
         )
+        fake_engine.delay_s = 10.0  # job is now mid-flight when we "crash"
     fake_engine.delay_s = 0.0
+    # The rerun re-reads from chunk 0: script the same segment on its first mic
+    # window so the content is identical to the dead run's.
+    fake_engine.script[("mic", fake_engine._counts["mic"])] = [seg(1.0, 2.0, "eventually")]
     with TestClient(create_app(settings, fake_provider, enumerator, engine_factory)) as c2:
         assert wait_until(
             lambda: c2.get(f"/sessions/{sid}/transcripts/{od}").json()["state"] == "completed",
             timeout_s=15,
         )
+        # FR-006 retry-from-scratch: the dead run's segment must NOT survive
+        # alongside the rerun's — exactly one copy (field: 69-min requeued job
+        # produced every segment in duplicate before this was fixed).
+        segs = c2.get(f"/sessions/{sid}/transcripts/{od}").json()["segments"]
+        assert [s["text"] for s in segs].count("eventually") == 1, segs

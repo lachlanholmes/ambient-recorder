@@ -25,8 +25,13 @@ def _fabricate_crashed_session(settings) -> str:
     chunks = FsChunkStore(settings.sessions_root)
     session = Session(title="crashed", started_at=utcnow(), dir_path="d")
     sources = [
-        CaptureSource(session_id=session.id, kind=k, device_id=f"dev-{k}",
-                      device_label=k.value, native_rate_hz=48000)
+        CaptureSource(
+            session_id=session.id,
+            kind=k,
+            device_id=f"dev-{k}",
+            device_label=k.value,
+            native_rate_hz=48000,
+        )
         for k in SourceKind
     ]
     meta.create_active_session(session, sources)
@@ -34,11 +39,16 @@ def _fabricate_crashed_session(settings) -> str:
         for seq in (0, 1, 2):
             written = chunks.write_chunk(session.id, kind, seq, PCM_10S)
             if seq < 2:  # crash lost the DB row for the last finalised chunk
-                meta.record_chunk(AudioChunk(
-                    session_id=session.id, source_kind=kind, seq=seq,
-                    file_path=written.file_path, duration_s=written.duration_s,
-                    size_bytes=written.size_bytes,
-                ))
+                meta.record_chunk(
+                    AudioChunk(
+                        session_id=session.id,
+                        source_kind=kind,
+                        seq=seq,
+                        file_path=written.file_path,
+                        duration_s=written.duration_s,
+                        size_bytes=written.size_bytes,
+                    )
+                )
     part = settings.sessions_root / session.id / "mic" / "chunk_000003.wav.part"
     part.write_bytes(b"mid-write at crash")
     meta.close()

@@ -67,6 +67,10 @@ class _TrackState:
     next_start_s: float = 0.0  # session time of the next expected chunk
     emitted_until_s: float = 0.0  # segments ending at/before this are already out
     pending: list[TimedSegment] = field(default_factory=list)  # deferred by attribution
+    # Recently emitted segments (last ~30 s) — the bleed rule's reference
+    # set for the other track. Kept in memory: reading them back from SQLite
+    # per chunk made on-demand O(n²) (gate-c finding: 0.9× real time).
+    recent: list[TimedSegment] = field(default_factory=list)
 
 
 @dataclass
@@ -319,6 +323,13 @@ class TranscriptionWorker:
                 continue
             if e > chunk_end - 0.05 and not live.stopping:
                 continue  # straddles the boundary → will reappear whole next window
+            # Whisper may re-segment the overlap region and produce a longer
+            # segment that swallows one already emitted (field: "Welcome to
+            # the product review" then "Welcome to the product review. Today
+            # we will…"). If most of this span is already covered, it is a
+            # re-read, not new speech — skip it (stable segments, FR-002).
+            if s < ts.emitted_until_s and (ts.emitted_until_s - s) >= 0.5 * (e - s):
+                continue
             cands.append(TimedSegment(s, e, r.text.strip()))
         ts.tail_pcm = pcm[-int(OVERLAP_S * _BYTES_PER_S) :]
         ts.tail_start_s = max(chunk_start, chunk_end - OVERLAP_S)
@@ -369,6 +380,7 @@ class TranscriptionWorker:
                 NewSegment(source=a.source, start_s=a.start_s, end_s=a.end_s, text=a.text),
             )
             live.tracks[kind].emitted_until_s = max(live.tracks[kind].emitted_until_s, a.end_s)
+            self._remember(live.tracks[kind], TimedSegment(a.start_s, a.end_s, a.text))
             self.stream.publish(live.transcript_id, SegmentFrame(segment=seg))
         jlog(
             "segments_emitted",
@@ -385,13 +397,14 @@ class TranscriptionWorker:
             return []
         lo = min(c.start_s for c in around) - 1.0
         hi = max(c.end_s for c in around) + 1.0
-        speaker = "me" if kind == SourceKind.MIC else "them"
-        segs = self.store.segments_after(live.transcript_id, -1)
-        return [
-            TimedSegment(s.start_s, s.end_s, s.text)
-            for s in segs
-            if s.source.value == speaker and s.start_s < hi and s.end_s > lo
-        ]
+        return [s for s in live.tracks[kind].recent if s.start_s < hi and s.end_s > lo]
+
+    @staticmethod
+    def _remember(ts: _TrackState, seg: TimedSegment, horizon_s: float = 30.0) -> None:
+        ts.recent.append(seg)
+        cutoff = seg.end_s - horizon_s
+        if ts.recent and ts.recent[0].end_s < cutoff:
+            ts.recent = [s for s in ts.recent if s.end_s >= cutoff]
 
     def _delivered_until(self, live: _LiveSession) -> float:
         return min(t.emitted_until_s for t in live.tracks.values()) if live.tracks else 0.0
@@ -496,7 +509,9 @@ class TranscriptionWorker:
             return
         _, kind, meta = order[idx]
         try:
-            self._transcribe_chunk(state, kind, meta, beam_size=5, mode="on_demand")
+            self._transcribe_chunk(
+                state, kind, meta, beam_size=self.settings.on_demand_beam_size, mode="on_demand"
+            )
         except (EngineError, EngineNotReadyError) as e:
             self._od_state.pop(item.transcript_id, None)
             now = utcnow()

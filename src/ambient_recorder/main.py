@@ -45,6 +45,7 @@ def create_app(
 
     if engine_factory is None:
         from ambient_recorder.transcription.readiness import DefaultEngineFactory
+
         engine_factory = DefaultEngineFactory(settings)
     transcripts = SqliteTranscriptStore(settings.db_path)
     stream = SegmentStream()
@@ -54,13 +55,13 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        jlog("startup", pid=os.getpid(),
-             config=settings.model_dump(mode="json"))
+        jlog("startup", pid=os.getpid(), config=settings.model_dump(mode="json"))
         reconciled = reconcile_interrupted(metadata, chunk_store)
         jlog("reconciliation_done", sessions_reconciled=reconciled)
         reconcile_transcription(transcripts, engine.active_session_id)
-        jlog("device_readiness",
-             sources=[r.model_dump(mode="json") for r in enumerator.readiness()])
+        jlog(
+            "device_readiness", sources=[r.model_dump(mode="json") for r in enumerator.readiness()]
+        )
         jlog("transcription_readiness", **engine_factory.readiness().model_dump(mode="json"))
         worker.start()
         worker.requeue_open_on_demand()

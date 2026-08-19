@@ -23,8 +23,13 @@ def store(tmp_path):
 def _session(title=None) -> tuple[Session, list[CaptureSource]]:
     s = Session(title=title, started_at=utcnow(), dir_path="d")
     sources = [
-        CaptureSource(session_id=s.id, kind=k, device_id=f"dev-{k}",
-                      device_label=k.value, native_rate_hz=48000)
+        CaptureSource(
+            session_id=s.id,
+            kind=k,
+            device_id=f"dev-{k}",
+            device_label=k.value,
+            native_rate_hz=48000,
+        )
         for k in SourceKind
     ]
     return s, sources
@@ -42,8 +47,14 @@ def test_one_active_session_enforced(store):
 def test_record_chunk_idempotent_and_counts(store):
     s, sources = _session()
     store.create_active_session(s, sources)
-    chunk = AudioChunk(session_id=s.id, source_kind=SourceKind.MIC, seq=0,
-                       file_path="p", duration_s=10.0, size_bytes=320044)
+    chunk = AudioChunk(
+        session_id=s.id,
+        source_kind=SourceKind.MIC,
+        seq=0,
+        file_path="p",
+        duration_s=10.0,
+        size_bytes=320044,
+    )
     store.record_chunk(chunk)
     store.record_chunk(chunk)  # reconciliation may re-record
     detail = store.get_session(s.id)
@@ -72,14 +83,19 @@ def test_last_device_ids_from_most_recent_session(store):
     store.create_active_session(a, sa)
     store.finalize_session(a.id, "completed", utcnow(), 1.0)
     b = Session(title="second", started_at=utcnow(), dir_path="d")
-    sb = [CaptureSource(session_id=b.id, kind=k, device_id=f"new-{k}",
-                        device_label=k.value, native_rate_hz=48000)
-          for k in SourceKind]
+    sb = [
+        CaptureSource(
+            session_id=b.id,
+            kind=k,
+            device_id=f"new-{k}",
+            device_label=k.value,
+            native_rate_hz=48000,
+        )
+        for k in SourceKind
+    ]
     store.create_active_session(b, sb)
     store.finalize_session(b.id, "completed", utcnow(), 1.0)
-    assert store.last_device_ids() == {
-        SourceKind.MIC: "new-mic", SourceKind.SYSTEM: "new-system"
-    }
+    assert store.last_device_ids() == {SourceKind.MIC: "new-mic", SourceKind.SYSTEM: "new-system"}
 
 
 def test_list_sessions_newest_first(store):

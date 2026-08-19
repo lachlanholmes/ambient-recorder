@@ -22,11 +22,7 @@ EXPECTED_WS = {"/sessions/{session_id}/transcript/stream"}
 
 def test_openapi_contains_exactly_the_documented_routes(app):
     spec = app.openapi()
-    actual = {
-        (path, method)
-        for path, methods in spec["paths"].items()
-        for method in methods
-    }
+    actual = {(path, method) for path, methods in spec["paths"].items() for method in methods}
     assert actual == EXPECTED
 
 

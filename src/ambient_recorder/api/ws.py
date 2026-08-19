@@ -50,8 +50,11 @@ async def transcript_stream(ws: WebSocket, session_id: str, after: int = -1):
         current = await run_in_threadpool(store.get_transcript, t.id)
         job = await run_in_threadpool(store.get_job, t.id)
         state = current.state if current else t.state
-        await ws.send_text(StatusFrame(state=state, lag_s=job.lag_s if job else None,
-                                       final=bool(current and current.final)).model_dump_json())
+        await ws.send_text(
+            StatusFrame(
+                state=state, lag_s=job.lag_s if job else None, final=bool(current and current.final)
+            ).model_dump_json()
+        )
         if state in _TERMINAL:
             await ws.close()
             return
@@ -59,20 +62,25 @@ async def transcript_stream(ws: WebSocket, session_id: str, after: int = -1):
         while True:
             try:
                 frame = await asyncio.get_running_loop().run_in_executor(
-                    None, lambda: sub.get(timeout=_HEARTBEAT_S))
+                    None, lambda: sub.get(timeout=_HEARTBEAT_S)
+                )
             except queue.Empty:
                 cur = await run_in_threadpool(store.get_transcript, t.id)
                 job = await run_in_threadpool(store.get_job, t.id)
-                await ws.send_text(StatusFrame(state=cur.state, lag_s=job.lag_s if job else None,
-                                               final=cur.final).model_dump_json())
+                await ws.send_text(
+                    StatusFrame(
+                        state=cur.state, lag_s=job.lag_s if job else None, final=cur.final
+                    ).model_dump_json()
+                )
                 if cur.state in _TERMINAL:
                     await ws.close()
                     return
                 continue
             if frame is None:  # stream closed by publisher (terminal or overflow)
                 cur = await run_in_threadpool(store.get_transcript, t.id)
-                await ws.send_text(StatusFrame(state=cur.state, lag_s=0.0,
-                                               final=cur.final).model_dump_json())
+                await ws.send_text(
+                    StatusFrame(state=cur.state, lag_s=0.0, final=cur.final).model_dump_json()
+                )
                 await ws.close()
                 return
             if isinstance(frame, SegmentFrame):
