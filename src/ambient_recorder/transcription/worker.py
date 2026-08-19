@@ -145,8 +145,13 @@ class TranscriptionWorker:
     # -- on-demand -----------------------------------------------------------
 
     def request_on_demand(self, session_id: str) -> Transcript:
+        r = self.factory.readiness()
         t = Transcript(
-            session_id=session_id, mode=TranscriptMode.ON_DEMAND, state=TranscriptState.PENDING
+            session_id=session_id,
+            mode=TranscriptMode.ON_DEMAND,
+            state=TranscriptState.PENDING,
+            engine=r.engine,
+            model=r.model,
         )
         job = TranscriptionJob(
             transcript_id=t.id,
@@ -188,7 +193,13 @@ class TranscriptionWorker:
         if readiness.status == ReadinessState.NOT_INSTALLED:
             jlog("transcription_skipped", session_id=session_id, reason="not_installed")
             return  # analyze C1: capture-only install → state none, no row
-        t = Transcript(session_id=session_id, mode=TranscriptMode.LIVE, state=TranscriptState.LIVE)
+        t = Transcript(
+            session_id=session_id,
+            mode=TranscriptMode.LIVE,
+            state=TranscriptState.LIVE,
+            engine=readiness.engine,
+            model=readiness.model,
+        )
         job = TranscriptionJob(
             transcript_id=t.id,
             session_id=session_id,
@@ -335,12 +346,19 @@ class TranscriptionWorker:
         # For the bleed rule we need the *other* track's candidates that
         # overlap in time; those already emitted are the reference set.
         other_kind = SourceKind.SYSTEM if kind == SourceKind.MIC else SourceKind.MIC
-        other_recent = self._recent_emitted(live, other_kind, cands)
+        # Reference set = the other track's emitted segments PLUS its
+        # still-pending candidates (a bleed twin may be waiting there too).
+        other_recent = self._recent_emitted(live, other_kind, cands) + list(
+            live.tracks[other_kind].pending
+        )
         if kind == SourceKind.MIC:
             system = other_recent
         else:
             mic = other_recent
-        attributed, deferred = attribute(mic, system, live.energy, self.cfg)
+        transcribed_until = {k: t.next_start_s for k, t in live.tracks.items()}
+        attributed, deferred = attribute(
+            mic, system, live.energy, self.cfg, transcribed_until=transcribed_until
+        )
         live.tracks[kind].pending = deferred[kind]
         own_speaker = "me" if kind == SourceKind.MIC else "them"
         for a in attributed:

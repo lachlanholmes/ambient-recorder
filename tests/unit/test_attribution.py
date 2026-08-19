@@ -84,3 +84,46 @@ def test_uncovered_span_is_deferred_then_resolved():
     e.add(SYS, 0.0, tone(10.0, 100))
     out, deferred = attribute(deferred[MIC], [], e, AttributionConfig())
     assert [s.source.value for s in out] == ["me"] and not deferred[MIC]
+
+
+def test_field_case_different_segmentation_and_late_other_track():
+    """Gate-(c) live run: Whisper split the same bleed audio into different
+    segments per track, and the system chunk arrived after the mic chunk."""
+    e = _buf(mic_amp=800, sys_amp=8000, seconds=30.0)  # system ≈ +20 dB, as measured
+    mic = [
+        TimedSegment(
+            21.0,
+            25.2,
+            "You and the AI would would both do it in tandem for a few months and you would be",
+        ),
+        TimedSegment(
+            25.2,
+            28.9,
+            "like you would get to how much are they catching how much am I catching is it about",
+        ),
+    ]
+    # System track not yet transcribed past 20.9 → both mic candidates defer.
+    out, deferred = attribute(
+        mic, [], e, AttributionConfig(), transcribed_until={MIC: 30.0, SYS: 20.9}
+    )
+    assert out == [] and deferred[MIC] == mic
+    # System chunk lands with *different* boundaries; merged text matches.
+    sys = [
+        TimedSegment(
+            20.9,
+            26.1,
+            "You and the AI would would both do it in tandem for a few months "
+            "and you would be like you would get to",
+        ),
+        TimedSegment(
+            26.4,
+            29.9,
+            "How much are they catching how much am I catching is it about the same "
+            "is it more is it?",
+        ),
+    ]
+    out, deferred = attribute(
+        mic, sys, e, AttributionConfig(), transcribed_until={MIC: 30.0, SYS: 30.0}
+    )
+    assert [s.source.value for s in out] == ["them", "them"]  # mic copies dropped
+    assert not deferred[MIC]

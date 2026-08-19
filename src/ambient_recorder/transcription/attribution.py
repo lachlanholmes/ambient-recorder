@@ -111,11 +111,16 @@ def attribute(
     system: list[TimedSegment],
     energy: EnergyBuffer,
     cfg: AttributionConfig,
+    transcribed_until: dict[SourceKind, float] | None = None,
 ) -> tuple[list[AttributedSegment], dict[SourceKind, list[TimedSegment]]]:
     """Returns (attributed, deferred). Deferred candidates lacked paired-track
-    energy coverage and must be resubmitted with the next chunk."""
+    coverage (energy, or — when the other track is much louder — transcribed
+    text) and must be resubmitted with the next chunk. `transcribed_until`
+    gives, per track, the session time up to which that track's audio has
+    been transcribed (None = unknown → never defer on text coverage)."""
     out: list[AttributedSegment] = []
     deferred: dict[SourceKind, list[TimedSegment]] = {SourceKind.MIC: [], SourceKind.SYSTEM: []}
+    tu = transcribed_until or {}
 
     def decide(own: SourceKind, cands: list[TimedSegment], others: list[TimedSegment]) -> None:
         other = SourceKind.SYSTEM if own == SourceKind.MIC else SourceKind.MIC
@@ -126,11 +131,23 @@ def attribute(
             if own_db is None or other_db is None:
                 deferred[own].append(c)
                 continue
-            twin = any(
-                _time_overlap(c, o) and _overlap_ratio(c.text, o.text) >= cfg.overlap_ratio
-                for o in others
-            )
-            if twin and other_db - own_db >= cfg.bleed_db:
+            louder_other = other_db - own_db >= cfg.bleed_db
+            if not louder_other:
+                out.append(AttributedSegment(speaker, c.start_s, c.end_s, c.text))
+                continue
+            # The other track is much louder here: these words might be bleed.
+            # Whisper segments the two tracks differently, so compare against
+            # the other track's *concatenated* text over this span (±1 s), not
+            # segment-by-segment. If the other track has no transcribed text
+            # covering this span yet (its chunk is still queued), defer rather
+            # than guess — field-verified at gate (c): without this, bleed that
+            # arrives one chunk later was emitted twice.
+            nearby = [o for o in others if o.start_s < c.end_s + 1.0 and o.end_s > c.start_s - 1.0]
+            if other in tu and tu[other] < c.end_s - 0.5:
+                deferred[own].append(c)  # other track not transcribed this far yet
+                continue
+            merged = " ".join(o.text for o in nearby)
+            if nearby and _overlap_ratio(c.text, merged) >= cfg.overlap_ratio:
                 continue  # bleed: the paired track owns these words
             out.append(AttributedSegment(speaker, c.start_s, c.end_s, c.text))
 
