@@ -23,9 +23,15 @@ SYSTEM_ID = "fake-loopback"
 
 
 class FakeStream:
-    def __init__(self, provider: FakeCaptureProvider, device_id: str,
-                 on_frames: FrameCallback, on_device_lost: DeviceLostCallback,
-                 native_rate_hz: int, channels: int):
+    def __init__(
+        self,
+        provider: FakeCaptureProvider,
+        device_id: str,
+        on_frames: FrameCallback,
+        on_device_lost: DeviceLostCallback,
+        native_rate_hz: int,
+        channels: int,
+    ):
         self._provider = provider
         self.device_id = device_id
         self.on_frames = on_frames
@@ -33,6 +39,9 @@ class FakeStream:
         self._rate = native_rate_hz
         self._channels = channels
         self.closed = False
+        # Fakes push audio instantaneously, so wall-clock idle between pushes
+        # is NOT silence; tests that want gap-fill semantics set this True.
+        self.realtime = provider.realtime
 
     @property
     def native_rate_hz(self) -> int:
@@ -47,20 +56,27 @@ class FakeStream:
 
 
 class FakeCaptureProvider:
-    def __init__(self, native_rate_hz: int = 48_000,
-                 channels: Mapping[str, int] | None = None):
+    def __init__(self, native_rate_hz: int = 48_000, channels: Mapping[str, int] | None = None):
         self.native_rate_hz = native_rate_hz
         self.channels = dict(channels or {MIC_ID: 1, SYSTEM_ID: 2})
-        self.refuse: set[str] = set()          # device_ids that fail to open
+        self.refuse: set[str] = set()  # device_ids that fail to open
         self.streams: dict[str, FakeStream] = {}
+        self.realtime = False  # see FakeStream.realtime
 
-    def open(self, device_id: str, on_frames: FrameCallback,
-             on_device_lost: DeviceLostCallback) -> FakeStream:
+    def open(
+        self, device_id: str, on_frames: FrameCallback, on_device_lost: DeviceLostCallback
+    ) -> FakeStream:
         if device_id in self.refuse:
             kind = SourceKind.MIC if device_id == MIC_ID else SourceKind.SYSTEM
             raise DeviceUnavailableError(kind, device_id)
-        stream = FakeStream(self, device_id, on_frames, on_device_lost,
-                            self.native_rate_hz, self.channels.get(device_id, 1))
+        stream = FakeStream(
+            self,
+            device_id,
+            on_frames,
+            on_device_lost,
+            self.native_rate_hz,
+            self.channels.get(device_id, 1),
+        )
         self.streams[device_id] = stream
         return stream
 
@@ -78,8 +94,7 @@ class FakeCaptureProvider:
 
 
 class FakeDeviceEnumerator:
-    def __init__(self, provider: FakeCaptureProvider,
-                 missing: set[SourceKind] | None = None):
+    def __init__(self, provider: FakeCaptureProvider, missing: set[SourceKind] | None = None):
         self.provider = provider
         self.missing = missing or set()
         # Mutable so tests can simulate a changed default device.
@@ -92,15 +107,19 @@ class FakeDeviceEnumerator:
             (SourceKind.SYSTEM, self.ids[SourceKind.SYSTEM], "Fake Speakers (Loopback)"),
         ):
             if kind not in self.missing:
-                infos.append(DeviceInfo(
-                    id=dev_id, label=label, kind=kind, is_default=True,
-                    native_rate_hz=self.provider.native_rate_hz,
-                    channels=self.provider.channels.get(dev_id, 1),
-                ))
+                infos.append(
+                    DeviceInfo(
+                        id=dev_id,
+                        label=label,
+                        kind=kind,
+                        is_default=True,
+                        native_rate_hz=self.provider.native_rate_hz,
+                        channels=self.provider.channels.get(dev_id, 1),
+                    )
+                )
         return infos
 
-    def readiness(self, previous: Mapping[SourceKind, str] | None = None
-                  ) -> list[DeviceReadiness]:
+    def readiness(self, previous: Mapping[SourceKind, str] | None = None) -> list[DeviceReadiness]:
         present = {d.kind: d for d in self.enumerate()}
         out = []
         for kind in SourceKind:
@@ -108,11 +127,21 @@ class FakeDeviceEnumerator:
             if d is None:
                 out.append(DeviceReadiness(kind=kind, status=ReadinessStatus.MISSING))
             elif previous and kind in previous and previous[kind] != d.id:
-                out.append(DeviceReadiness(
-                    kind=kind, status=ReadinessStatus.DEFAULT_CHANGED,
-                    device_id=d.id, device_label=d.label))
+                out.append(
+                    DeviceReadiness(
+                        kind=kind,
+                        status=ReadinessStatus.DEFAULT_CHANGED,
+                        device_id=d.id,
+                        device_label=d.label,
+                    )
+                )
             else:
-                out.append(DeviceReadiness(
-                    kind=kind, status=ReadinessStatus.PRESENT,
-                    device_id=d.id, device_label=d.label))
+                out.append(
+                    DeviceReadiness(
+                        kind=kind,
+                        status=ReadinessStatus.PRESENT,
+                        device_id=d.id,
+                        device_label=d.label,
+                    )
+                )
         return out

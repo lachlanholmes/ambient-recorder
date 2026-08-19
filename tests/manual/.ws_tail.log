@@ -1,0 +1,25 @@
+--- status: live lag=0.0 final=False
+--- status: live lag=0.0 final=False
+--- status: live lag=0.0 final=False
+--- status: live lag=10.0 final=False
+#   0 [    0.0-    4.2] them  lag= 13.2s  Welcome to the product review. Today we will cover three items.
+--- status: live lag=10.0 final=False
+--- status: live lag=20.0 final=False
+--- status: live lag=20.0 final=False
+#   1 [    5.0-   10.3] them  lag= 19.4s  First, the mobile release slipped by one week because of a certificate problem.
+#   2 [   10.3-   15.3] them  lag= 14.4s  Second, customer feedback on the new dashboard has been very positive.
+#   3 [   15.3-   19.8] them  lag=  9.9s  Third, we need a decision on the pricing change before the end of the month.
+#   4 [    7.3-   11.0]   me  lag= 18.8s  Today we will cover three items.
+--- status: live lag=9.02 final=False
+--- status: live lag=19.02 final=False
+--- status: live lag=19.02 final=False
+--- status: live lag=19.02 final=False
+--- status: live lag=29.02 final=False
+--- status: live lag=29.02 final=False
+--- status: live lag=39.019999999999996 final=False
+--- status: live lag=39.019999999999996 final=False
+#   5 [   15.0-   23.1]   me  lag= 36.5s  problem. Second, customer feedback on the new dashboard has been very positive.
+#   6 [   23.1-   28.3]   me  lag= 31.4s  Okay. Third, we need a decision on the pricing change before the end of the
+#   7 [   25.0-   28.7]   me  lag= 31.0s  We need a decision on the pricing change before the end of the month.
+#   8 [   28.7-   29.7]   me  lag= 30.0s  Ship it.
+--- status: completed lag=0.0 final=True
