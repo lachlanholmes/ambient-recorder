@@ -17,12 +17,14 @@ from pathlib import Path
 from ambient_recorder.models.transcript import ReadinessState, TranscriptionReadiness
 
 # (model, device, compute_type, min_free_vram_mb) in preference order.
+# Thresholds from gate-(c) measurements (research R2): medium peaks at
+# ~1.1 GB, small at ~0.4 GB; minimums include ~400 MB of safety margin.
 POLICY: list[tuple[str, str, str, int]] = [
-    ("medium", "cuda", "int8_float16", 3000),
-    ("small", "cuda", "int8", 1500),
+    ("medium", "cuda", "int8_float16", 1500),
+    ("small", "cuda", "int8", 800),
     ("small", "cpu", "int8", 0),
 ]
-REQUIRED_VRAM_MB = 2200  # medium steady-state estimate, research R2
+REQUIRED_VRAM_MB = 1123  # medium measured peak, research R2
 
 FETCH_CMD = "python scripts/fetch_models.py medium"
 

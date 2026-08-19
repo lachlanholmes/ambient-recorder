@@ -24,8 +24,14 @@ def test_ready_medium_cuda():
 
 
 def test_degrades_to_small_cuda_when_vram_tight():
-    r, choice = choose(_probes(free=2000, present={"medium", "small"}))
+    # Thresholds from gate-(c) measurements: medium needs 1500 MB free.
+    r, choice = choose(_probes(free=1200, present={"medium", "small"}))
     assert choice == ("small", "cuda", "int8")
+
+
+def test_falls_to_cpu_when_vram_very_tight():
+    r, choice = choose(_probes(free=500, present={"medium", "small"}))
+    assert choice == ("small", "cpu", "int8")
 
 
 def test_degrades_to_cpu_without_cuda():

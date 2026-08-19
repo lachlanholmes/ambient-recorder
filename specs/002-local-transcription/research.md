@@ -32,18 +32,49 @@ frozen.
 
   | Item | Estimate |
   |------|----------|
-  | Whisper `medium` int8_float16 weights | ~1.6 GB |
+  | Whisper `medium` int8_float16 weights | ~1.6 GB (est.; measured 1.04 GB) |
   | Activations + beam + CTranslate2 workspace (30 s window, beam 5) | ~0.6 GB |
-  | **STT total** | **~2.2 GB** |
+  | **STT total** | **~2.2 GB est. → 1.12 GB measured** |
   | LLM reserve (Q4 3–4B + modest KV cache, spec Q3) | 3.5 GB |
   | Constitution headroom | 1.0 GB |
   | **Committed** | **6.7 GB of 8.0 GB** (1.3 GB spare) |
 
+- **Measured at gate (c), 2026-08-19, RTX 4070 Laptop 8188 MiB** (T022;
+  test audio = 120 s of the real 001 soak recording, 6 mic + 6 system
+  chunks, beam 1 and beam 5, nvidia-smi deltas vs 0 MiB idle):
+
+  | Model / compute | Load | VRAM after load | VRAM peak | Throughput |
+  |-----------------|------|-----------------|-----------|------------|
+  | `medium` / int8_float16 | 3.7 s | 1041 MB | **1123 MB** | 9.4× RT |
+  | `distil-large-v3` / int8_float16 | 2.9 s | 1041 MB | 1091 MB | 23.9× RT |
+  | `small` / int8 | 1.1 s | 401 MB | 419 MB | 18.6× RT |
+
+  The estimates above were conservative by ~2×: real peak for `medium`
+  is **1.1 GB, not 2.2 GB**. Revised committed total: 1.1 (STT) + 3.5
+  (LLM reserve) + 1.0 (headroom) = **5.6 GB of 8.0 GB**, 2.4 GB spare.
+  All three candidates exceed NFR-001 (≥ 1×) and NFR-002 (≥ 4×) with
+  wide margin; live mode's lag will be dominated by chunk cadence, not
+  inference. Decision confirmed: **`medium` int8_float16 stays the
+  default** — it produced the cleanest transcript of the three on the
+  field audio (spelling the unfamiliar proper noun most consistently);
+  `distil-large-v3` is 2.5× faster at equal VRAM and is the named
+  upgrade if the scripted accuracy test (T038) favours it. Degradation
+  thresholds below are relaxed to match the real numbers (medium needs
+  ~1.5 GB free, not 3 GB).
+  Engineering notes from the install: ctranslate2 4.5 requires
+  `setuptools<81` (pkg_resources), and its CUDA 12 build needs the
+  **12.4-line** NVIDIA wheels (`cublas 12.4.5.8`, `cudnn 9.1.0.70`,
+  `nvrtc 12.4.127`) — the unpinned 12.9 wheels load but fail at first
+  matmul with CUBLAS_STATUS_INVALID_VALUE. The wheels' DLLs are not on
+  the Windows loader path; `whisper_engine.py` registers them with
+  `os.add_dll_directory` before import. Unloading a model mid-process
+  (`del model`) crashes CTranslate2 on exit (exit 127) — the worker's
+  one-instance-per-process design already avoids this; never hot-swap.
 - **Degradation strategy** (specified, not improvised): at engine load,
-  measure free VRAM. ≥ 3.0 GB free → `medium` on CUDA. 1.5–3.0 GB →
-  `small` int8 on CUDA (~0.9 GB; accuracy drop logged as a warning and
-  surfaced in readiness). < 1.5 GB or CUDA unavailable → `small` int8 on
-  CPU (real-time on two tracks is *not* guaranteed; lag reporting makes
+  measure free VRAM. ≥ 1.5 GB free → `medium` on CUDA. 0.8–1.5 GB →
+  `small` int8 on CUDA (~0.4 GB measured; accuracy drop logged as a
+  warning and surfaced in readiness). < 0.8 GB or CUDA unavailable →
+  `small` int8 on CPU (real-time on two tracks is *not* guaranteed; lag reporting makes
   that visible; never-skip still holds). Choice is logged and exposed via
   `/transcription/readiness`.
 - **Alternatives considered**: `large-v3-turbo` (~3.2 GB int8 — best
