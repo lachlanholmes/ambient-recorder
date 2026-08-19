@@ -23,3 +23,5 @@ data/models/
 Thumbs.db
 *.tmp
 *.swp
+tests/manual/.ws_tail.log
+tests/manual/.last_sid
