@@ -14,11 +14,31 @@ in the codebase. See `.specify/memory/constitution.md`, Principle I.
 
 ## Status
 
-Feature 001 (capture sessions) — foundation, API, storage, and the full
-device-free test suite are implemented. The real WASAPI capture provider is
-gated: per constitution Principle IV, **gate (d)**, any task that opens real
-audio devices requires explicit human approval first. Until T019 lands,
-`python -m ambient_recorder` exits with a gate notice.
+- **Feature 001 — capture sessions**: done and field-verified (live,
+  crash-recovery, 69-min soak).
+- **Feature 002 — local transcription**: live transcription during
+  recording (`me`/`them` attributed, streamed over WebSocket) plus on-demand
+  backfill of stored sessions, on faster-whisper `medium` (CUDA). Measured
+  on the target RTX 4070: ~1.1 GB VRAM, live lag 2–15 s, on-demand ~2×
+  real time on two-track meeting audio.
+
+## Transcription setup (optional, constitution gate (c))
+
+Capture works without any of this; sessions simply have no transcript.
+
+```bash
+pip install -c constraints.txt -e ".[dev,transcription]"   # ~1 GB CUDA/cuDNN wheels
+python scripts/fetch_models.py medium small               # ~2 GB weights → data/models/
+python -m ambient_recorder
+curl -s 127.0.0.1:8377/transcription/readiness             # expect ready:true, model medium/int8_float16/cuda
+```
+
+Then every session is transcribed live; tail one with
+`python tests/manual/ws_tail.py <session-id>`, read it back at
+`GET /sessions/<id>/transcript`, or backfill an old session with
+`POST /sessions/<id>/transcribe`. Tuning knobs (env): `AMBREC_BLEED_DB`,
+`AMBREC_OVERLAP_RATIO` (speaker-bleed attribution), `AMBREC_ON_DEMAND_BEAM_SIZE`.
+Drop to `small` in `data/models/` for ~3× faster backfill at an accuracy cost.
 
 ## Development
 

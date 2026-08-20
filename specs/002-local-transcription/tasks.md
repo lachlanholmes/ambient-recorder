@@ -58,9 +58,9 @@
 - [x] T019 [US1] WebSocket route in `src/ambient_recorder/api/ws.py`: `/sessions/{id}/transcript/stream?after=`, replay from store then tail from stream.py, status frames on connect/state change/every 5 s, close on terminal state; register in main.py
 - [x] T020 [US1] Integration test live end-to-end with fakes in `tests/integration/test_live_transcription.py`: start session → push chunks (fake provider) → fake engine emits scripted segments → WS client receives me/them segments in order → stop → finalising → completed(final) → GET transcript identical to streamed set → restart app → transcript still current
 - [x] T021 [US1] Integration test rolling-window dedup in `tests/integration/test_live_window.py`: scripted segment straddling a chunk boundary is emitted exactly once, whole
-- [ ] T022 [US1] **[GATE-C — halt for human approval before this task]** Install `[transcription]` extra, download Whisper `medium` (and `distil-large-v3` for comparison) into `data/models/` via `scripts/fetch_models.py`; assert `ctranslate2.get_cuda_device_count() > 0` before proceeding (else the "cuda" degradation branch is silently CPU — stop and fix the wheel variant); measure and record real VRAM (weights, peak during transcribe) + throughput on the RTX 4070 into research.md R2, confirm/adjust the model choice
-- [ ] T023 [US1] **[GATE-C]** WhisperEngine + WhisperEngineFactory in `src/ambient_recorder/transcription/whisper_engine.py` (faster-whisper, int8_float16, beam 1 live / 5 on-demand, word timestamps, applies readiness policy); make it the default factory in `__main__.py`; structural conformance test (no load) added to `tests/contract/test_transcription_protocols.py`
-- [ ] T024 [US1] **[GATE-C]** Manual scripts `tests/manual/ws_tail.py` (WS tail with `--after`) and `tests/manual/test_002_live.md` (quickstart Scenarios 1–2 on real devices + model; record observed lag)
+- [x] T022 [US1] **[GATE-C — halt for human approval before this task]** Install `[transcription]` extra, download Whisper `medium` (and `distil-large-v3` for comparison) into `data/models/` via `scripts/fetch_models.py`; assert `ctranslate2.get_cuda_device_count() > 0` before proceeding (else the "cuda" degradation branch is silently CPU — stop and fix the wheel variant); measure and record real VRAM (weights, peak during transcribe) + throughput on the RTX 4070 into research.md R2, confirm/adjust the model choice
+- [x] T023 [US1] **[GATE-C]** WhisperEngine + WhisperEngineFactory in `src/ambient_recorder/transcription/whisper_engine.py` (faster-whisper, int8_float16, beam 1 live / 5 on-demand, word timestamps, applies readiness policy); make it the default factory in `__main__.py`; structural conformance test (no load) added to `tests/contract/test_transcription_protocols.py`
+- [x] T024 [US1] **[GATE-C]** Manual scripts `tests/manual/ws_tail.py` (WS tail with `--after`) and `tests/manual/test_002_live.md` (quickstart Scenarios 1–2 on real devices + model; record observed lag)
 
 **Checkpoint**: Live transcription works end-to-end — MVP
 
@@ -91,7 +91,7 @@
 - [x] T030 [US3] On-demand job execution in `worker.py`: iterate stored chunks per track via ChunkStore.inventory, chunk-granular progress, priority 1 (yields to live), beam 5, same attribution, completed(final) or failed with reason; POST route in `api/routes.py`
 - [x] T031 [US3] Integration tests in `tests/integration/test_on_demand.py`: legacy session (no transcript) → completed; session with live transcript → while job pending the live one is still current and `pending_job` is populated → on success new current + old superseded (list shows both, get-by-id works); failed job → live transcript remains current, retry creates a fresh attempt
 - [x] T032 [US3] Startup reconciliation for transcription in `storage/transcripts.py` + hook in `main.py`: orphaned live → `interrupted_live` (segments kept); orphaned running on-demand → requeued; integration test in `tests/integration/test_transcription_reconciliation.py`
-- [ ] T033 [US3] **[GATE-C]** Manual `tests/manual/test_002_on_demand.md`: transcribe a feature-001-era session (e.g. the soak) with the real model; record throughput vs NFR-002 (≥ 4× real time)
+- [x] T033 [US3] **[GATE-C]** Manual `tests/manual/test_002_on_demand.md`: transcribe a feature-001-era session (e.g. the soak) with the real model; record throughput vs NFR-002 (≥ 4× real time)
 
 **Checkpoint**: Backfill + supersede + restart all covered
 
@@ -115,8 +115,8 @@
 
 - [x] T037 [P] OpenAPI surface guard update in `tests/contract/test_openapi_surface.py` (new REST routes; WS asserted via app.routes)
 - [ ] T038 [P] **[GATE-C]** Accuracy script + scoring sheet `tests/manual/accuracy_script.md` (SC-001: scripted two-sided dialogue with deliberate bleed; ≥ 90% attribution) and tune AttributionConfig defaults from results
-- [ ] T039 [P] README + docs/backlog.md update: transcription setup (gate-c commands), readiness endpoint, model choice, known lag caveat (chunk-boundary), sub-second streaming as backlog item
-- [ ] T040 Run full quickstart.md end-to-end; fix doc/behaviour drift
+- [x] T039 [P] README + docs/backlog.md update: transcription setup (gate-c commands), readiness endpoint, model choice, known lag caveat (chunk-boundary), sub-second streaming as backlog item
+- [x] T040 Run full quickstart.md end-to-end; fix doc/behaviour drift
 
 ---
 
