@@ -105,7 +105,7 @@
 
 - [x] T034 [US4] Priority/yield integration test in `tests/integration/test_transcription_priority.py`: slow fake engine + on-demand job in progress → start new session → start ≤ 5 s (flake-resistant CI ceiling, matching feature 001; strict 2 s is manual in T036), live chunks processed before remaining on-demand chunks
 - [x] T035 [US4] Feature 001 regression gate: full existing suite runs unchanged with the transcription worker active (conftest wiring in `tests/conftest.py`), plus never-skip test in `tests/integration/test_never_skip.py`: slow engine, many chunks → all chunks eventually transcribed, lag rises then falls, `completed` only after backlog drains
-- [ ] T036 [US4] **[GATE-C]** Manual `tests/manual/test_002_corun_soak.md`: 2-hour live-transcribed session with playback — chunk_counts ≈ 720/720, zero .part orphans, nvidia-smi steady VRAM recorded, CPU/RAM additive to feature 001 within NFR-003, observed p95 lag vs SC-002; contention test (start during on-demand job) timed
+- [x] T036 [US4] **[GATE-C]** Manual `tests/manual/test_002_corun_soak.md`: 2-hour live-transcribed session with playback — chunk_counts ≈ 720/720, zero .part orphans, nvidia-smi steady VRAM recorded, CPU/RAM additive to feature 001 within NFR-003, observed p95 lag vs SC-002; contention test (start during on-demand job) timed
 
 **Checkpoint**: All four stories independently verified
 

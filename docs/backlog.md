@@ -25,6 +25,13 @@ it from here in the same commit.
   2026-08-19) but is a heuristic; proper AEC would remove the mic echo
   before STT. Only worth it if the accuracy script (tests/manual/
   accuracy_script.md) shows attribution misses in practice.
+- **Graceful shutdown endpoint**: stopping the recorder currently means
+  Ctrl+C in its terminal or hunting PIDs — during the 002 soak
+  (2026-08-21) an external `taskkill` on the listener killed a 5-hour
+  session mid-recording (recovered cleanly via reconciliation, but the
+  stop was accidental). A `POST /shutdown` (finalise active session +
+  transcript, then exit) would make "stop the recorder" a safe one-liner
+  and pair naturally with the future tray/UI feature.
 - **Transcript summarisation / assistant (feature 003 candidate)**: the
   LLM the 002 VRAM plan reserves ~3.5 GB for. Inputs are ready: `me`/`them`
   segments with timestamps, current transcript per session, live stream.
