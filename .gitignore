@@ -11,6 +11,7 @@ build/
 
 # Recorder data (never commit captured audio or metadata)
 data/
+data/models/
 
 # Environment / secrets
 .env*
@@ -22,3 +23,5 @@ data/
 Thumbs.db
 *.tmp
 *.swp
+tests/manual/.ws_tail.log
+tests/manual/.last_sid

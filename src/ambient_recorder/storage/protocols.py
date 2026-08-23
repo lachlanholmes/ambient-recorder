@@ -45,9 +45,7 @@ class ChunkStore(Protocol):
 
 @runtime_checkable
 class MetadataStore(Protocol):
-    def create_active_session(
-        self, session: Session, sources: list[CaptureSource]
-    ) -> None: ...
+    def create_active_session(self, session: Session, sources: list[CaptureSource]) -> None: ...
 
     def record_chunk(self, chunk: AudioChunk) -> None: ...
 

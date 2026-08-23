@@ -184,9 +184,7 @@ class WasapiDeviceEnumerator:
             )
         return out
 
-    def readiness(
-        self, previous: Mapping[SourceKind, str] | None = None
-    ) -> list[DeviceReadiness]:
+    def readiness(self, previous: Mapping[SourceKind, str] | None = None) -> list[DeviceReadiness]:
         present = {d.kind: d for d in self.enumerate()}
         out: list[DeviceReadiness] = []
         for kind in SourceKind:

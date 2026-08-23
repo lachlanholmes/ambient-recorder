@@ -30,20 +30,16 @@ def test_disk_full_mid_session_finalises_cleanly(app, client, fake_provider):
     engine.chunk_store = wrapper
 
     sid = client.post("/sessions", json={}).json()["id"]
-    fake_provider.push_seconds(MIC_ID, 10.5)   # one good chunk persists
+    fake_provider.push_seconds(MIC_ID, 10.5)  # one good chunk persists
     fake_provider.push_seconds(SYSTEM_ID, 10.5)
     # Writer threads persist asynchronously — wait for the good chunk
     # before arming the failure, else the first write already ENOSPCs.
-    assert wait_until(
-        lambda: client.get(f"/sessions/{sid}").json()["chunk_counts"]["mic"] >= 1
-    )
+    assert wait_until(lambda: client.get(f"/sessions/{sid}").json()["chunk_counts"]["mic"] >= 1)
 
     wrapper.full = True
-    fake_provider.push_seconds(MIC_ID, 10.5)   # this write hits ENOSPC
+    fake_provider.push_seconds(MIC_ID, 10.5)  # this write hits ENOSPC
 
-    assert wait_until(
-        lambda: engine.active_session_id is None
-    ), "disk-full finalise did not run"
+    assert wait_until(lambda: engine.active_session_id is None), "disk-full finalise did not run"
 
     detail = client.get(f"/sessions/{sid}").json()
     assert detail["status"] == "completed"

@@ -16,7 +16,8 @@ def test_all_present(client):
     body = DeviceReadinessResponse.model_validate(r.json())
     assert body.ready is True
     assert {s.kind: s.status for s in body.sources} == {
-        SourceKind.MIC: "present", SourceKind.SYSTEM: "present"
+        SourceKind.MIC: "present",
+        SourceKind.SYSTEM: "present",
     }
 
 

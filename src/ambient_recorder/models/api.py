@@ -24,6 +24,11 @@ class ErrorCode(StrEnum):
     DISK_SPACE_LOW = "disk_space_low"
     VALIDATION_ERROR = "validation_error"
     INTERNAL_ERROR = "internal_error"
+    # feature 002
+    TRANSCRIPT_NOT_FOUND = "transcript_not_found"
+    TRANSCRIPTION_NOT_READY = "transcription_not_ready"
+    SESSION_STILL_ACTIVE = "session_still_active"
+    TRANSCRIPTION_ALREADY_RUNNING = "transcription_already_running"
 
 
 class ErrorBody(BaseModel):
