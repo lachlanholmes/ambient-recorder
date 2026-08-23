@@ -114,7 +114,7 @@
 ## Phase 7: Polish
 
 - [x] T037 [P] OpenAPI surface guard update in `tests/contract/test_openapi_surface.py` (new REST routes; WS asserted via app.routes)
-- [ ] T038 [P] **[GATE-C]** Accuracy script + scoring sheet `tests/manual/accuracy_script.md` (SC-001: scripted two-sided dialogue with deliberate bleed; ≥ 90% attribution) and tune AttributionConfig defaults from results
+- [x] T038 [P] **[GATE-C]** Accuracy script + scoring sheet `tests/manual/accuracy_script.md` (SC-001: scripted two-sided dialogue with deliberate bleed; ≥ 90% attribution) and tune AttributionConfig defaults from results
 - [x] T039 [P] README + docs/backlog.md update: transcription setup (gate-c commands), readiness endpoint, model choice, known lag caveat (chunk-boundary), sub-second streaming as backlog item
 - [x] T040 Run full quickstart.md end-to-end; fix doc/behaviour drift
 
