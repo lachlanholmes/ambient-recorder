@@ -29,6 +29,12 @@ class ErrorCode(StrEnum):
     TRANSCRIPTION_NOT_READY = "transcription_not_ready"
     SESSION_STILL_ACTIVE = "session_still_active"
     TRANSCRIPTION_ALREADY_RUNNING = "transcription_already_running"
+    # feature 003
+    ASSISTANT_NOT_READY = "assistant_not_ready"
+    TRANSCRIPT_NOT_FINAL = "transcript_not_final"
+    SUMMARY_NOT_FOUND = "summary_not_found"
+    CONVERSATION_NOT_FOUND = "conversation_not_found"
+    TURN_NOT_FOUND = "turn_not_found"
 
 
 class ErrorBody(BaseModel):
