@@ -48,9 +48,7 @@ def validate_citations(
     cleaned = re.sub(r"  +", " ", cleaned)
 
     bare = _MARKER.sub("", cleaned).strip().strip(".").lower()
-    if bare == DECLINE_PHRASE or (
-        DECLINE_PHRASE in bare and len(bare) <= len(DECLINE_PHRASE) + 30
-    ):
+    if bare == DECLINE_PHRASE or (DECLINE_PHRASE in bare and len(bare) <= len(DECLINE_PHRASE) + 30):
         return cleaned, [], GroundingVerdict.DECLINED
     citations = [seen[n] for n in sorted(seen)]
     if citations:

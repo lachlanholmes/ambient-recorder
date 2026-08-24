@@ -29,8 +29,9 @@ _BULLET = re.compile(r"^\s*[-*]\s+(.*)$")
 _CHARS_PER_TOKEN = 4
 
 
-def windows(segments: list[TranscriptSegment], window_s: float = 1200.0
-            ) -> list[list[TranscriptSegment]]:
+def windows(
+    segments: list[TranscriptSegment], window_s: float = 1200.0
+) -> list[list[TranscriptSegment]]:
     out: list[list[TranscriptSegment]] = []
     cur: list[TranscriptSegment] = []
     edge = window_s
@@ -48,8 +49,15 @@ def windows(segments: list[TranscriptSegment], window_s: float = 1200.0
 
 def _excerpts(segs: list[TranscriptSegment], session_id: str) -> list[Excerpt]:
     return [
-        Excerpt(n=i + 1, session_id=session_id, transcript_id=s.transcript_id,
-                seq=s.seq, start_s=s.start_s, source=s.source.value, text=s.text)
+        Excerpt(
+            n=i + 1,
+            session_id=session_id,
+            transcript_id=s.transcript_id,
+            seq=s.seq,
+            start_s=s.start_s,
+            source=s.source.value,
+            text=s.text,
+        )
         for i, s in enumerate(segs)
     ]
 
@@ -95,11 +103,21 @@ def _bullet_citations(text: str, by_n: dict[int, Excerpt]) -> tuple[str, list[Ci
             return ""
         if n not in seen:
             seen.add(n)
-            cits.append(Citation(session_id=e.session_id, transcript_id=e.transcript_id,
-                                 seq=e.seq, start_s=e.start_s))
+            cits.append(
+                Citation(
+                    session_id=e.session_id,
+                    transcript_id=e.transcript_id,
+                    seq=e.seq,
+                    start_s=e.start_s,
+                )
+            )
         return m.group(0)
 
-    cleaned = _MARKER.sub(_sub, text).strip()
+    _MARKER.sub(_sub, text)  # collect citations
+    # Summary citations live in the structured list; markers are stripped
+    # from stored text entirely (unlike Q&A answers, where inline [n]
+    # markers are the display convention).
+    cleaned = re.sub(r"\s+", " ", _MARKER.sub("", text)).strip()
     return cleaned, cits
 
 
@@ -108,8 +126,11 @@ def _parse_action(text: str) -> tuple[Speaker, str, str | None] | None:
     if len(parts) < 2:
         return None
     owner_raw = parts[0].lower().strip("() ")
-    owner = Speaker.ME if "me" in owner_raw.split() or owner_raw == "me" else (
-        Speaker.THEM if "them" in owner_raw else None)
+    owner = (
+        Speaker.ME
+        if "me" in owner_raw.split() or owner_raw == "me"
+        else (Speaker.THEM if "them" in owner_raw else None)
+    )
     if owner is None:
         return None
     task = parts[1]
@@ -121,9 +142,14 @@ class MalformedOutputError(Exception):
     pass
 
 
-def summarize(segments: list[TranscriptSegment], session_id: str,
-              generate: GenerateFn, *, window_s: float = 1200.0,
-              budget_tokens: int = 3000) -> SummaryContent:
+def summarize(
+    segments: list[TranscriptSegment],
+    session_id: str,
+    generate: GenerateFn,
+    *,
+    window_s: float = 1200.0,
+    budget_tokens: int = 3000,
+) -> SummaryContent:
     """Full pipeline. `generate` is called once per window + once per reduce
     tier; each call gets one retry on malformed structure."""
     win = windows(segments, window_s)
@@ -137,8 +163,11 @@ def summarize(segments: list[TranscriptSegment], session_id: str,
             e.n += offset
             excerpt_index[e.n] = e
         offset += len(ex)
-        notes.append(_call_checked(generate, summary_map_prompt(ex), SUMMARY_MAP_SYSTEM,
-                                   require_overview=False))
+        notes.append(
+            _call_checked(
+                generate, summary_map_prompt(ex), SUMMARY_MAP_SYSTEM, require_overview=False
+            )
+        )
 
     # second reduce tier if the notes themselves blow the budget
     budget_chars = budget_tokens * _CHARS_PER_TOKEN
@@ -148,14 +177,26 @@ def summarize(segments: list[TranscriptSegment], session_id: str,
         size = 0
         for n in notes:
             if group and size + len(n) > budget_chars:
-                merged.append(_call_checked(generate, summary_reduce_prompt(group),
-                                            SUMMARY_REDUCE_SYSTEM, require_overview=False))
+                merged.append(
+                    _call_checked(
+                        generate,
+                        summary_reduce_prompt(group),
+                        SUMMARY_REDUCE_SYSTEM,
+                        require_overview=False,
+                    )
+                )
                 group, size = [], 0
             group.append(n)
             size += len(n)
         if group:
-            merged.append(_call_checked(generate, summary_reduce_prompt(group),
-                                        SUMMARY_REDUCE_SYSTEM, require_overview=False))
+            merged.append(
+                _call_checked(
+                    generate,
+                    summary_reduce_prompt(group),
+                    SUMMARY_REDUCE_SYSTEM,
+                    require_overview=False,
+                )
+            )
         if len(merged) >= len(notes):  # no progress; bail to a single reduce
             notes = merged
             break
@@ -163,8 +204,9 @@ def summarize(segments: list[TranscriptSegment], session_id: str,
 
     # Always run the final reduce — even one window's notes need the
     # OVERVIEW-bearing final structure.
-    final_text = _call_checked(generate, summary_reduce_prompt(notes),
-                               SUMMARY_REDUCE_SYSTEM, require_overview=True)
+    final_text = _call_checked(
+        generate, summary_reduce_prompt(notes), SUMMARY_REDUCE_SYSTEM, require_overview=True
+    )
     sections = _parse_sections(final_text)
 
     def items(section: str) -> list[SummaryItem]:
@@ -181,15 +223,19 @@ def summarize(segments: list[TranscriptSegment], session_id: str,
         parsed = _parse_action(text)
         if parsed and cits:
             owner, task, deadline = parsed
-            actions.append(ActionItem(text=task, owner=owner, deadline_text=deadline,
-                                      citations=cits))
+            actions.append(
+                ActionItem(text=task, owner=owner, deadline_text=deadline, citations=cits)
+            )
     overview = " ".join(sections.get("OVERVIEW", [])) or "No overview produced."
-    return SummaryContent(overview=overview, key_points=items("KEY POINTS"),
-                          decisions=items("DECISIONS"), action_items=actions)
+    return SummaryContent(
+        overview=overview,
+        key_points=items("KEY POINTS"),
+        decisions=items("DECISIONS"),
+        action_items=actions,
+    )
 
 
-def _call_checked(generate: GenerateFn, prompt: str, system: str, *,
-                  require_overview: bool) -> str:
+def _call_checked(generate: GenerateFn, prompt: str, system: str, *, require_overview: bool) -> str:
     """One retry if the output has no recognisable structure (R4)."""
     for attempt in (1, 2):
         text = generate(prompt, system)
@@ -199,5 +245,8 @@ def _call_checked(generate: GenerateFn, prompt: str, system: str, *,
         if has_bullets or (require_overview and has_overview):
             return text
         if attempt == 1:
-            prompt = prompt + "\n\nIMPORTANT: use exactly the required section headings and dash bullets."
+            prompt = (
+                prompt
+                + "\n\nIMPORTANT: use exactly the required section headings and dash bullets."
+            )
     raise MalformedOutputError("model output had no parseable structure after retry")

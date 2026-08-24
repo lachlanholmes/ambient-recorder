@@ -6,7 +6,11 @@ insert-only supersede-but-keep pattern.
 
 ## Summary
 
-One summary *attempt* for a session. Current = newest non-failed.
+One summary *attempt* for a session. Current = newest **completed**;
+a pending re-run never displaces a readable summary (aligned with 002's
+transcript rule during implementation, 2026-08-24). If none is
+completed, the newest non-failed is current so first-run state stays
+inspectable.
 
 | Field | Type | Rules |
 |-------|------|-------|

@@ -12,12 +12,12 @@ import threading
 import time
 from collections.abc import Iterator
 
-from ambient_recorder.models.assistant import AssistantReadiness, AssistantReadinessState
 from ambient_recorder.assistant.protocols import (
     EngineError,
     EngineNotReadyError,
     GenerationChunk,
 )
+from ambient_recorder.models.assistant import AssistantReadiness, AssistantReadinessState
 
 
 class FakeAssistantEngine:

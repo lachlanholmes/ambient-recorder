@@ -5,8 +5,8 @@ from fastapi.testclient import TestClient
 
 from ambient_recorder.config import Settings
 from ambient_recorder.main import create_app
-from tests.support.fake_capture import FakeCaptureProvider, FakeDeviceEnumerator
 from tests.support.fake_assistant import FakeAssistantEngine, FakeAssistantFactory
+from tests.support.fake_capture import FakeCaptureProvider, FakeDeviceEnumerator
 from tests.support.fake_speech import FakeEngineFactory, FakeSpeechEngine
 
 

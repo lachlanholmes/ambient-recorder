@@ -19,11 +19,11 @@ from ambient_recorder.api.transcription_routes import router as transcription_ro
 from ambient_recorder.api.ws import router as ws_router
 from ambient_recorder.assistant.protocols import AssistantEngineFactory
 from ambient_recorder.assistant.worker import AssistantWorker
-from ambient_recorder.storage.assistant import SqliteAssistantStore, reconcile_assistant
 from ambient_recorder.audio.engine import CaptureEngine
 from ambient_recorder.audio.protocols import CaptureProvider, DeviceEnumerator
 from ambient_recorder.config import Settings
 from ambient_recorder.logging import jlog, setup_logging
+from ambient_recorder.storage.assistant import SqliteAssistantStore, reconcile_assistant
 from ambient_recorder.storage.chunks import FsChunkStore
 from ambient_recorder.storage.metadata import SqliteMetadataStore, reconcile_interrupted
 from ambient_recorder.storage.transcripts import SqliteTranscriptStore, reconcile_transcription

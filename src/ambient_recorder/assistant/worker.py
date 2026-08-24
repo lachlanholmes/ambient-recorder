@@ -79,8 +79,9 @@ class AssistantWorker:
         self._last_activity = time.monotonic()
         self._session_active = False
         self._thread = threading.Thread(target=self._run, name="assistant", daemon=True)
-        self._idle_thread = threading.Thread(target=self._idle_watch, name="assistant-idle",
-                                             daemon=True)
+        self._idle_thread = threading.Thread(
+            target=self._idle_watch, name="assistant-idle", daemon=True
+        )
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -107,7 +108,7 @@ class AssistantWorker:
 
     def _idle_watch(self) -> None:
         while True:
-            time.sleep(30)
+            time.sleep(2)
             if self._session_active or self._engine is None:
                 continue
             idle = time.monotonic() - self._last_activity
@@ -122,8 +123,9 @@ class AssistantWorker:
 
     def request_summary(self, session_id: str, transcript_id: str) -> Summary:
         s = Summary(session_id=session_id, transcript_id=transcript_id)
-        task = AssistantTask(kind=TaskKind.SUMMARY, ref_id=s.id, session_id=session_id,
-                             priority=PRIORITY_SUMMARY)
+        task = AssistantTask(
+            kind=TaskKind.SUMMARY, ref_id=s.id, session_id=session_id, priority=PRIORITY_SUMMARY
+        )
         self.store.create_summary(s, task)
         self._push(_Item(task.priority, next(self._counter), task.id, "summary"))
         return s
@@ -133,7 +135,9 @@ class AssistantWorker:
         live = self.active_session_id_fn() == session_id
         turn = ConversationTurn(conversation_id=conversation.id, question=question)
         task = AssistantTask(
-            kind=TaskKind.ASK, ref_id=turn.id, session_id=session_id,
+            kind=TaskKind.ASK,
+            ref_id=turn.id,
+            session_id=session_id,
             priority=PRIORITY_LIVE_ASK if live else PRIORITY_ASK,
         )
         turn = self.store.create_turn(turn, task)
@@ -195,22 +199,29 @@ class AssistantWorker:
         t0 = time.perf_counter()
         try:
             content = summarize(
-                segments, summary.session_id, self._generate_text,
+                segments,
+                summary.session_id,
+                self._generate_text,
                 window_s=self.settings.summary_window_s,
                 budget_tokens=self.settings.excerpt_budget_tokens,
             )
         except (EngineError, EngineNotReadyError, MalformedOutputError) as e:
             self.store.fail_summary(summary.id, f"{type(e).__name__}: {e}")
-            self.store.update_task(task_id, state=TaskState.FAILED, ended_at=utcnow(),
-                                   failure_reason=str(e))
+            self.store.update_task(
+                task_id, state=TaskState.FAILED, ended_at=utcnow(), failure_reason=str(e)
+            )
             jlog("assistant_task_failed", task_id=task_id, kind="summary", reason=str(e))
             return
         model = self._engine.descriptor if self._engine else "unknown"
         self.store.complete_summary(summary.id, content, model)
         self.store.update_task(task_id, state=TaskState.COMPLETED, ended_at=utcnow())
-        jlog("assistant_task_completed", task_id=task_id, kind="summary",
-             wall_s=round(time.perf_counter() - t0, 1),
-             action_items=len(content.action_items))
+        jlog(
+            "assistant_task_completed",
+            task_id=task_id,
+            kind="summary",
+            wall_s=round(time.perf_counter() - t0, 1),
+            action_items=len(content.action_items),
+        )
 
     # -- asks --------------------------------------------------------------
 
@@ -233,11 +244,18 @@ class AssistantWorker:
         watermark = f"live:{max((s.seq for s in segments), default=-1)}" if live else "final"
 
         history_texts = [t.question for t in conv.turns if t.id != turn.id]
-        history_pairs = [(t.question, t.answer) for t in conv.turns
-                         if t.id != turn.id and t.state == TurnState.COMPLETED]
+        history_pairs = [
+            (t.question, t.answer)
+            for t in conv.turns
+            if t.id != turn.id and t.state == TurnState.COMPLETED
+        ]
         excerpts = select_excerpts(
-            turn.question, history_texts, segments, session_id=session_id,
-            budget_tokens=self.settings.excerpt_budget_tokens, live=live,
+            turn.question,
+            history_texts,
+            segments,
+            session_id=session_id,
+            budget_tokens=self.settings.excerpt_budget_tokens,
+            live=live,
         )
         prompt = qa_prompt(excerpts, history_pairs, turn.question)
         if live:
@@ -262,8 +280,9 @@ class AssistantWorker:
                     self.store.append_answer_text(turn.id, chunk.text)
                     self.stream.publish(conv.id, TokenFrame(turn_seq=turn.seq, text=chunk.text))
         except (EngineError, EngineNotReadyError) as e:
-            self._fail_turn(task_id, turn.id, f"engine_error: {e}", conv_id=conv.id,
-                            turn_seq=turn.seq)
+            self._fail_turn(
+                task_id, turn.id, f"engine_error: {e}", conv_id=conv.id, turn_seq=turn.seq
+            )
             return
 
         raw = "".join(raw_parts)
@@ -276,12 +295,22 @@ class AssistantWorker:
         self.store.set_turn_answer(turn.id, cleaned)
         self.store.finish_turn(turn.id, state, citations, watermark)
         self.store.update_task(task_id, state=TaskState.COMPLETED, ended_at=utcnow())
-        self.stream.publish(conv.id, TurnStatusFrame(
-            turn_seq=turn.seq, state=state, citations=citations, watermark=watermark))
+        self.stream.publish(
+            conv.id,
+            TurnStatusFrame(
+                turn_seq=turn.seq, state=state, citations=citations, watermark=watermark
+            ),
+        )
         self.stream.close(conv.id)
-        jlog("assistant_task_completed", task_id=task_id, kind="ask", state=state.value,
-             first_token_s=round(first_token_s or 0.0, 2),
-             wall_s=round(time.perf_counter() - t0, 1), citations=len(citations))
+        jlog(
+            "assistant_task_completed",
+            task_id=task_id,
+            kind="ask",
+            state=state.value,
+            first_token_s=round(first_token_s or 0.0, 2),
+            wall_s=round(time.perf_counter() - t0, 1),
+            citations=len(citations),
+        )
 
     # -- shared ------------------------------------------------------------
 
@@ -291,17 +320,24 @@ class AssistantWorker:
         if task is None or task.state != TaskState.QUEUED:
             return None
         self.store.update_task(task_id, state=TaskState.RUNNING, started_at=utcnow())
-        jlog("assistant_task_started", task_id=task_id, kind=task.kind.value,
-             priority=task.priority)
+        jlog(
+            "assistant_task_started", task_id=task_id, kind=task.kind.value, priority=task.priority
+        )
         return task
 
-    def _fail_turn(self, task_id: str, turn_id: str, reason: str,
-                   conv_id: str | None = None, turn_seq: int | None = None) -> None:
+    def _fail_turn(
+        self,
+        task_id: str,
+        turn_id: str,
+        reason: str,
+        conv_id: str | None = None,
+        turn_seq: int | None = None,
+    ) -> None:
         self.store.finish_turn(turn_id, TurnState.FAILED, [], None)
-        self.store.update_task(task_id, state=TaskState.FAILED, ended_at=utcnow(),
-                               failure_reason=reason)
+        self.store.update_task(
+            task_id, state=TaskState.FAILED, ended_at=utcnow(), failure_reason=reason
+        )
         if conv_id is not None and turn_seq is not None:
-            self.stream.publish(conv_id, TurnStatusFrame(turn_seq=turn_seq,
-                                                         state=TurnState.FAILED))
+            self.stream.publish(conv_id, TurnStatusFrame(turn_seq=turn_seq, state=TurnState.FAILED))
             self.stream.close(conv_id)
         jlog("assistant_task_failed", task_id=task_id, kind="ask", reason=reason)

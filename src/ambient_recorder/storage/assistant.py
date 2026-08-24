@@ -108,9 +108,17 @@ class SqliteAssistantStore:
         with self._lock, self._db:
             self._db.execute(
                 "INSERT INTO summaries VALUES (?,?,?,?,?,?,?,?,?)",
-                (s.id, s.session_id, s.transcript_id, s.state.value,
-                 s.content.model_dump_json() if s.content else None, s.model,
-                 _iso(s.created_at), _iso(s.completed_at), s.failure_reason),
+                (
+                    s.id,
+                    s.session_id,
+                    s.transcript_id,
+                    s.state.value,
+                    s.content.model_dump_json() if s.content else None,
+                    s.model,
+                    _iso(s.created_at),
+                    _iso(s.completed_at),
+                    s.failure_reason,
+                ),
             )
             self._insert_task(task)
 
@@ -136,9 +144,7 @@ class SqliteAssistantStore:
                 (c.id, _iso(c.created_at), int(c.born_live)),
             )
             for sid in c.session_ids:
-                self._db.execute(
-                    "INSERT INTO conversation_sessions VALUES (?,?)", (c.id, sid)
-                )
+                self._db.execute("INSERT INTO conversation_sessions VALUES (?,?)", (c.id, sid))
 
     def create_turn(self, t: ConversationTurn, task: AssistantTask) -> ConversationTurn:
         with self._lock, self._db:
@@ -150,9 +156,18 @@ class SqliteAssistantStore:
             t = t.model_copy(update={"seq": int(row["n"])})
             self._db.execute(
                 "INSERT INTO conversation_turns VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (t.id, t.conversation_id, t.seq, t.question, t.answer,
-                 json.dumps([c.model_dump() for c in t.citations]), t.watermark,
-                 t.state.value, _iso(t.asked_at), _iso(t.completed_at)),
+                (
+                    t.id,
+                    t.conversation_id,
+                    t.seq,
+                    t.question,
+                    t.answer,
+                    json.dumps([c.model_dump() for c in t.citations]),
+                    t.watermark,
+                    t.state.value,
+                    _iso(t.asked_at),
+                    _iso(t.completed_at),
+                ),
             )
             self._insert_task(task)
         return t
@@ -164,22 +179,26 @@ class SqliteAssistantStore:
                 (text, turn_id),
             )
 
-    def finish_turn(self, turn_id: str, state: TurnState, citations: list[Citation],
-                    watermark: str | None) -> None:
+    def finish_turn(
+        self, turn_id: str, state: TurnState, citations: list[Citation], watermark: str | None
+    ) -> None:
         with self._lock, self._db:
             self._db.execute(
                 "UPDATE conversation_turns SET state=?, citations=?, watermark=?, "
                 "completed_at=? WHERE id=?",
-                (state.value, json.dumps([c.model_dump() for c in citations]),
-                 watermark, _iso(utcnow()), turn_id),
+                (
+                    state.value,
+                    json.dumps([c.model_dump() for c in citations]),
+                    watermark,
+                    _iso(utcnow()),
+                    turn_id,
+                ),
             )
 
     def set_turn_answer(self, turn_id: str, answer: str) -> None:
         """Replace the accumulated answer with the cleaned/validated text."""
         with self._lock, self._db:
-            self._db.execute(
-                "UPDATE conversation_turns SET answer=? WHERE id=?", (answer, turn_id)
-            )
+            self._db.execute("UPDATE conversation_turns SET answer=? WHERE id=?", (answer, turn_id))
 
     def update_task(self, task_id: str, **fields) -> None:
         allowed = {"state", "started_at", "ended_at", "failure_reason"}
@@ -204,27 +223,44 @@ class SqliteAssistantStore:
     def _insert_task(self, task: AssistantTask) -> None:
         self._db.execute(
             "INSERT INTO assistant_tasks VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (task.id, task.kind.value, task.ref_id, task.session_id, task.priority,
-             task.state.value, _iso(task.enqueued_at), _iso(task.started_at),
-             _iso(task.ended_at), task.failure_reason),
+            (
+                task.id,
+                task.kind.value,
+                task.ref_id,
+                task.session_id,
+                task.priority,
+                task.state.value,
+                _iso(task.enqueued_at),
+                _iso(task.started_at),
+                _iso(task.ended_at),
+                task.failure_reason,
+            ),
         )
 
     # -- reads -------------------------------------------------------------
 
     def current_summary(self, session_id: str) -> Summary | None:
+        """Newest COMPLETED summary; a pending re-run never displaces a
+        readable one (same rule as 002's transcripts). Falls back to the
+        newest non-failed so a first-ever pending/failed state is still
+        inspectable via GET /summary."""
         with self._lock:
             row = self._db.execute(
-                "SELECT * FROM summaries WHERE session_id=? AND state != 'failed' "
+                "SELECT * FROM summaries WHERE session_id=? AND state='completed' "
                 "ORDER BY created_at DESC, id DESC LIMIT 1",
                 (session_id,),
             ).fetchone()
+            if row is None:
+                row = self._db.execute(
+                    "SELECT * FROM summaries WHERE session_id=? AND state != 'failed' "
+                    "ORDER BY created_at DESC, id DESC LIMIT 1",
+                    (session_id,),
+                ).fetchone()
         return self._summary(row) if row else None
 
     def get_summary(self, summary_id: str) -> Summary | None:
         with self._lock:
-            row = self._db.execute(
-                "SELECT * FROM summaries WHERE id=?", (summary_id,)
-            ).fetchone()
+            row = self._db.execute("SELECT * FROM summaries WHERE id=?", (summary_id,)).fetchone()
         return self._summary(row) if row else None
 
     def list_summaries(self, session_id: str) -> list[SummaryVersionInfo]:
@@ -242,27 +278,35 @@ class SqliteAssistantStore:
                 and current_completed is not None
                 and r["id"] != current_completed.id
             )
-            out.append(SummaryVersionInfo(
-                id=r["id"], state=SummaryState(r["state"]), superseded=superseded,
-                model=r["model"], created_at=r["created_at"],
-            ))
+            out.append(
+                SummaryVersionInfo(
+                    id=r["id"],
+                    state=SummaryState(r["state"]),
+                    superseded=superseded,
+                    model=r["model"],
+                    created_at=r["created_at"],
+                )
+            )
         return out
 
     def get_conversation(self, cid: str) -> ConversationDetail | None:
         with self._lock:
-            row = self._db.execute(
-                "SELECT * FROM conversations WHERE id=?", (cid,)
-            ).fetchone()
+            row = self._db.execute("SELECT * FROM conversations WHERE id=?", (cid,)).fetchone()
             if row is None:
                 return None
-            sids = [r["session_id"] for r in self._db.execute(
-                "SELECT session_id FROM conversation_sessions WHERE conversation_id=?", (cid,)
-            )]
+            sids = [
+                r["session_id"]
+                for r in self._db.execute(
+                    "SELECT session_id FROM conversation_sessions WHERE conversation_id=?", (cid,)
+                )
+            ]
             turns = self._db.execute(
                 "SELECT * FROM conversation_turns WHERE conversation_id=? ORDER BY seq", (cid,)
             ).fetchall()
         return ConversationDetail(
-            id=row["id"], session_ids=sids, created_at=row["created_at"],
+            id=row["id"],
+            session_ids=sids,
+            created_at=row["created_at"],
             born_live=bool(row["born_live"]),
             turns=[self._turn_response(t) for t in turns],
         )
@@ -275,11 +319,16 @@ class SqliteAssistantStore:
         if r is None:
             return None
         return ConversationTurn(
-            id=r["id"], conversation_id=r["conversation_id"], seq=r["seq"],
-            question=r["question"], answer=r["answer"],
+            id=r["id"],
+            conversation_id=r["conversation_id"],
+            seq=r["seq"],
+            question=r["question"],
+            answer=r["answer"],
             citations=[Citation(**c) for c in json.loads(r["citations"])],
-            watermark=r["watermark"], state=TurnState(r["state"]),
-            asked_at=r["asked_at"], completed_at=r["completed_at"],
+            watermark=r["watermark"],
+            state=TurnState(r["state"]),
+            asked_at=r["asked_at"],
+            completed_at=r["completed_at"],
         )
 
     def list_conversations(self, session_id: str | None = None) -> list[ConversationResponse]:
@@ -297,14 +346,21 @@ class SqliteAssistantStore:
                 ).fetchall()
             out = []
             for r in rows:
-                sids = [x["session_id"] for x in self._db.execute(
-                    "SELECT session_id FROM conversation_sessions WHERE conversation_id=?",
-                    (r["id"],),
-                )]
-                out.append(ConversationResponse(
-                    id=r["id"], session_ids=sids, created_at=r["created_at"],
-                    born_live=bool(r["born_live"]),
-                ))
+                sids = [
+                    x["session_id"]
+                    for x in self._db.execute(
+                        "SELECT session_id FROM conversation_sessions WHERE conversation_id=?",
+                        (r["id"],),
+                    )
+                ]
+                out.append(
+                    ConversationResponse(
+                        id=r["id"],
+                        session_ids=sids,
+                        created_at=r["created_at"],
+                        born_live=bool(r["born_live"]),
+                    )
+                )
         return out
 
     def open_tasks(self) -> list[AssistantTask]:
@@ -327,30 +383,44 @@ class SqliteAssistantStore:
     @staticmethod
     def _turn_response(r: sqlite3.Row) -> TurnResponse:
         return TurnResponse(
-            id=r["id"], conversation_id=r["conversation_id"], seq=r["seq"],
-            question=r["question"], answer=r["answer"],
+            id=r["id"],
+            conversation_id=r["conversation_id"],
+            seq=r["seq"],
+            question=r["question"],
+            answer=r["answer"],
             citations=[Citation(**c) for c in json.loads(r["citations"])],
-            watermark=r["watermark"], state=TurnState(r["state"]),
-            asked_at=r["asked_at"], completed_at=r["completed_at"],
+            watermark=r["watermark"],
+            state=TurnState(r["state"]),
+            asked_at=r["asked_at"],
+            completed_at=r["completed_at"],
         )
 
     @staticmethod
     def _summary(r: sqlite3.Row) -> Summary:
         return Summary(
-            id=r["id"], session_id=r["session_id"], transcript_id=r["transcript_id"],
+            id=r["id"],
+            session_id=r["session_id"],
+            transcript_id=r["transcript_id"],
             state=SummaryState(r["state"]),
             content=SummaryContent.model_validate_json(r["content"]) if r["content"] else None,
-            model=r["model"], created_at=r["created_at"], completed_at=r["completed_at"],
+            model=r["model"],
+            created_at=r["created_at"],
+            completed_at=r["completed_at"],
             failure_reason=r["failure_reason"],
         )
 
     @staticmethod
     def _task(r: sqlite3.Row) -> AssistantTask:
         return AssistantTask(
-            id=r["id"], kind=TaskKind(r["kind"]), ref_id=r["ref_id"],
-            session_id=r["session_id"], priority=r["priority"],
-            state=TaskState(r["state"]), enqueued_at=r["enqueued_at"],
-            started_at=r["started_at"], ended_at=r["ended_at"],
+            id=r["id"],
+            kind=TaskKind(r["kind"]),
+            ref_id=r["ref_id"],
+            session_id=r["session_id"],
+            priority=r["priority"],
+            state=TaskState(r["state"]),
+            enqueued_at=r["enqueued_at"],
+            started_at=r["started_at"],
+            ended_at=r["ended_at"],
             failure_reason=r["failure_reason"],
         )
 
@@ -366,8 +436,12 @@ def reconcile_assistant(store: SqliteAssistantStore) -> dict:
             store.update_task(task.id, state=TaskState.QUEUED, started_at=None)
             counts["requeued"] += 1
         else:
-            store.update_task(task.id, state=TaskState.FAILED, ended_at=utcnow(),
-                              failure_reason="recorder restarted during answer")
+            store.update_task(
+                task.id,
+                state=TaskState.FAILED,
+                ended_at=utcnow(),
+                failure_reason="recorder restarted during answer",
+            )
             store.finish_turn(task.ref_id, TurnState.INTERRUPTED, [], None)
             counts["interrupted"] += 1
     if any(counts.values()):
