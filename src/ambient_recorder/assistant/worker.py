@@ -90,7 +90,7 @@ class AssistantWorker:
         self._idle_thread.start()
 
     def shutdown(self, timeout: float = 5.0) -> None:
-        self._push(_Item(-1, next(self._counter), kind="shutdown"))
+        self._push(_Item(-2, next(self._counter), kind="shutdown"))  # outranks warm (-1)
         self._thread.join(timeout=timeout)
 
     def readiness(self):
@@ -102,9 +102,19 @@ class AssistantWorker:
         if event == "started":
             self._session_active = True
             self._last_activity = time.monotonic()
+            # Spec assumption: the model is resident during meetings. Warm it
+            # now (measured: phi4-mini cold-loads ~20 s — lazily loading on
+            # the first live ask would blow NFR-003).
+            self.prewarm()
         elif event in ("stopped", "finalized"):
             self._session_active = False
             self._last_activity = time.monotonic()
+
+    def prewarm(self) -> None:
+        """Queue an engine load (priority -1: ahead of everything, cheap
+        no-op when already loaded or not ready). Also called when a
+        conversation is created, so post-idle asks find a warm model."""
+        self._push(_Item(-1, next(self._counter), kind="warm"))
 
     def _idle_watch(self) -> None:
         while True:
@@ -176,7 +186,10 @@ class AssistantWorker:
                 return
             self._last_activity = time.monotonic()
             try:
-                if item.kind == "summary":
+                if item.kind == "warm":
+                    if self.factory.readiness().ready:
+                        self._get_engine()
+                elif item.kind == "summary":
                     self._run_summary(item.task_id)
                 else:
                     self._run_ask(item.task_id)

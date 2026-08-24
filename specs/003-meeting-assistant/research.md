@@ -30,7 +30,30 @@ model choice freezes (same discipline as 002 R2, which proved estimates
   weights); gate (c) pulls and measures it against `qwen3:4b` and
   `phi4-mini` on summary + Q&A quality over the project's own field
   transcripts, then freezes the choice.
-- **Arithmetic** (re-measured at gate c):
+- **Measured at gate (c), 2026-08-24, Ollama 0.32.15, RTX 4070 8188 MiB**
+  (T028; quality judged on the T038 accuracy session's real transcript,
+  4-question probe + summary-map; VRAM via nvidia-smi deltas vs 0 idle):
+
+  | Model | Resident | Warm speed | Cold load | Probe quality |
+  |-------|----------|-----------|-----------|---------------|
+  | llama3.2:3b | 2577 MiB | 89 tok/s, first ~0.8 s | 2.7 s | 2/3 answerable + decline OK; **declined an easy answerable** |
+  | qwen3:4b | 3169 MiB | 62 tok/s | 7 s | **unusable**: thinking-mode model; leaks reasoning monologue into the response even with `think:false` |
+  | **phi4-mini** | 3083 MiB | 47–69 tok/s, first ~0.8 s | **19.7 s** | **4/4**: all answerable correct with citations, clean decline |
+
+  **Decision: `phi4-mini` default** — grounding quality is the feature's
+  core promise (SC-001/SC-003) and it was the only clean sweep. Its slow
+  cold load is mitigated in code rather than accepted: the worker
+  pre-warms the engine at session start (spec's residency assumption,
+  now actually implemented) and at conversation creation, so every
+  NFR-002/NFR-003 path meets its first-token budget with a warm model.
+  Residual known edge: asking on an *old* conversation after a long idle
+  pays the ~20 s load once. `llama3.2:3b` is the documented low-latency
+  alternative (`AMBREC_ASSISTANT_MODEL`); T030's full answer key can
+  overturn the default cheaply. Co-resident total: 1123 (STT) + 3083
+  (LLM) = **4206 MiB, well inside 8188 − 1024 headroom**. Note: the
+  three-candidate download totalled ~7 GB, not the plan's ~3 GB
+  estimate.
+- **Arithmetic** (planning estimates, superseded by the table above):
 
   | Item | Estimate |
   |------|----------|

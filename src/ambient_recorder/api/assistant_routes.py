@@ -136,6 +136,7 @@ async def create_conversation(request: Request, body: ConversationCreateRequest)
     active = request.app.state.engine.active_session_id
     c = Conversation(session_ids=body.session_ids, born_live=active in body.session_ids)
     await run_in_threadpool(store.create_conversation, c)
+    worker.prewarm()  # hide the model's cold-load behind question typing
     return ConversationResponse(
         id=c.id, session_ids=c.session_ids, created_at=c.created_at, born_live=c.born_live
     )

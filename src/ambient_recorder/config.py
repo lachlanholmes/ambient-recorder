@@ -31,7 +31,7 @@ class Settings(BaseModel):
     on_demand_beam_size: int = Field(default=1, ge=1, le=8)
     # feature 003 — assistant (research R1/R2/R6)
     ollama_url: str = "http://127.0.0.1:11434"
-    assistant_model: str = "llama3.2:3b"
+    assistant_model: str = "phi4-mini"
     assistant_keep_alive_active: str = "30m"  # refreshed while a session is live
     assistant_idle_unload_s: int = Field(default=600, ge=0)  # release after stop + idle
     excerpt_budget_tokens: int = Field(default=3000, ge=200)

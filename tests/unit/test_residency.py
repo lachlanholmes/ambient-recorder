@@ -51,3 +51,18 @@ def test_engine_kept_while_session_active(
     time.sleep(0.5)  # give the idle thread a chance to (wrongly) fire
     assert assistant_factory.release_calls == 0  # session active → never released
     client.post(f"/sessions/{sid}/stop")
+
+
+def test_prewarm_on_session_start_and_conversation_create(
+    app, client, fake_provider, assistant_factory
+):
+    """Measured at gate (c): phi4-mini cold-loads ~20 s, so the engine must
+    be warm before the first ask can need it."""
+    assert assistant_factory.load_calls == 0
+    client.post("/sessions", json={}).json()  # session start → prewarm
+    assert wait_until(lambda: assistant_factory.load_calls >= 1)
+    sid = client.get("/sessions").json()["sessions"][0]["id"]
+    client.post(f"/sessions/{sid}/stop")
+    n = assistant_factory.load_calls
+    client.post("/conversations", json={"session_ids": [sid]})  # create → prewarm
+    assert wait_until(lambda: assistant_factory.load_calls >= n)  # no-op if warm
