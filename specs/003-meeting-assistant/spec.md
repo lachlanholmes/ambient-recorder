@@ -14,6 +14,11 @@
 
 - Q: How far does the assistant go in v1 — summaries only, summaries + post-meeting Q&A, or additionally a live in-meeting assistant? → A: **The full scope (option C)**: summaries, post-meeting Q&A, and a live in-meeting assistant that answers questions during an active session grounded in the transcript-so-far. The LLM is co-resident with live transcription during meetings — the co-residency the VRAM reservation was designed for. The API delivers live answers; rendering them conveniently is the future UI feature's job.
 
+### Session 2026-08-24
+
+- Q: Do Q&A answers stream as they generate, or return only when complete? → A: **Stream** — answer text is pushed incrementally as the model generates (same push pattern as 002's segment stream); the stored Conversation turn keeps the final text and citations, so complete-only consumption falls out by reading the turn after completion. Summaries are tasks (no streaming; poll state, read result).
+- Q: One conversation per session or many? → A: **Multiple, explicitly created** — a question either starts a new conversation or continues an existing one by id; each conversation has its own follow-up context; conversations are listable per session. Fresh context on demand instead of follow-ups resolving against arbitrarily old exchanges.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Get a meeting summary (Priority: P1)
@@ -185,7 +190,11 @@ while a recording session runs undisturbed.
   completed session's transcript, citing supporting segments, and MUST
   state plainly when the transcript does not contain an answer.
 - **FR-004**: Q&A MUST support multi-turn conversations scoped to one
-  session, with follow-ups resolved in conversation context.
+  session, with follow-ups resolved in conversation context. A session
+  may hold multiple conversations: a question either starts a new
+  conversation or continues an existing one by id, and a session's
+  conversations are listable. Follow-up context never crosses
+  conversation boundaries.
 - **FR-005**: Summaries and Q&A exchanges MUST be stored durably,
   associated with their session and the transcript version they derive
   from, retrievable without re-processing, and surviving restarts.
@@ -216,6 +225,14 @@ while a recording session runs undisturbed.
   capture and transcription under contention (they own priority 0 and 1;
   assistant work is strictly lower). Between meetings the assistant may
   hold or release resources freely.
+- **FR-012**: Q&A answers (live and post-meeting) MUST be delivered as
+  an incremental stream while generating, followed by a terminal status
+  carrying the validated citations; the completed turn is stored and
+  readable afterwards, so complete-only consumption requires no separate
+  mode. A consumer that disconnects mid-answer can read the finished
+  turn from the stored conversation. Summaries are not streamed: they
+  are tasks whose state is polled and whose result is read on
+  completion.
 
 ### Non-Functional Requirements
 
@@ -246,11 +263,12 @@ while a recording session runs undisturbed.
 - **AssistantTask**: One unit of assistant work (summary generation or
   answer generation) — state (`queued | running | completed | failed`),
   timestamps, failure reason.
-- **Conversation**: A multi-turn Q&A exchange scoped to one session — an
-  ordered list of question/answer turns, each answer carrying citations
-  (segment references) and the transcript watermark it answered against
-  (final, or live-up-to-segment-N); a conversation begun live continues
-  seamlessly post-meeting.
+- **Conversation**: One of possibly several multi-turn Q&A exchanges
+  scoped to a session — identity, creation time, and an ordered list of
+  question/answer turns, each answer carrying citations (segment
+  references) and the transcript watermark it answered against (final,
+  or live-up-to-segment-N). Follow-up context is per-conversation; a
+  conversation begun live continues seamlessly post-meeting.
 
 ## Out of Scope *(this feature)*
 
