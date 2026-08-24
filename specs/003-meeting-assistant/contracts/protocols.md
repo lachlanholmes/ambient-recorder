@@ -66,9 +66,11 @@ class AssistantStore(Protocol):
                     citations: list[Citation], watermark: str) -> None
     def update_task(self, task_id: str, **fields) -> None
     def current_summary(self, session_id: str) -> Summary | None
-    def list_summaries(self, session_id: str) -> list[SummarySummary]
+    def list_summaries(self, session_id: str) -> list[SummaryVersionInfo]
     def get_conversation(self, cid: str) -> ConversationDetail | None
-    def list_conversations(self, session_id: str) -> list[ConversationSummary]
+    def list_conversations(self, session_id: str | None = None
+                           ) -> list[ConversationSummary]
+        """All conversations, or those whose scope includes session_id."""
     def open_tasks(self) -> list[AssistantTask]      # reconciliation input
     def next_queued(self) -> AssistantTask | None    # priority order
 ```

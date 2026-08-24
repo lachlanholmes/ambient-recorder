@@ -27,8 +27,8 @@ curl -s 127.0.0.1:8377/sessions/<id>/summary | python -m json.tool
 ## Scenario 2 — post-meeting Q&A with citations (US2, SC-003)
 
 ```bash
-CID=$(curl -s -X POST 127.0.0.1:8377/sessions/<id>/conversations | python -c "import sys,json;print(json.load(sys.stdin)['id'])")
-curl -s -X POST 127.0.0.1:8377/sessions/<id>/conversations/$CID/ask \
+CID=$(curl -s -X POST 127.0.0.1:8377/conversations -H 'content-type: application/json' -d '{"session_ids":["<id>"]}' | python -c "import sys,json;print(json.load(sys.stdin)['id'])")
+curl -s -X POST 127.0.0.1:8377/conversations/$CID/ask \
      -H 'content-type: application/json' -d '{"question":"what did they say about the certificate problem?"}'
 python tests/manual/answer_tail.py $CID     # watch tokens stream; terminal status carries citations
 # follow-up in the same conversation: {"question":"who said that?"}

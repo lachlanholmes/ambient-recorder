@@ -18,6 +18,7 @@
 
 - Q: Do Q&A answers stream as they generate, or return only when complete? → A: **Stream** — answer text is pushed incrementally as the model generates (same push pattern as 002's segment stream); the stored Conversation turn keeps the final text and citations, so complete-only consumption falls out by reading the turn after completion. Summaries are tasks (no streaming; poll state, read result).
 - Q: One conversation per session or many? → A: **Multiple, explicitly created** — a question either starts a new conversation or continues an existing one by id; each conversation has its own follow-up context; conversations are listable per session. Fresh context on demand instead of follow-ups resolving against arbitrarily old exchanges.
+- Q (analyze): Are conversations children of sessions, or top-level? → A: **Top-level, scoped to sessions** — a conversation is a chat with the assistant about a *scope* of recordings, declared at creation as a list of sessions. v1 restricts the scope to exactly one session (retrieval, grounding, and accuracy tests stay single-transcript), but the shape means future cross-session Q&A is only a retrieval upgrade, not an API or schema break.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -59,10 +60,11 @@ invented content.
 
 ### User Story 2 - Ask questions about a meeting (Priority: P2)
 
-The user asks a free-form question about a finished meeting — "what did
-they say about pricing?", "what did I commit to?", "when is the new
-date?" — and receives an answer grounded in that session's transcript,
-citing the moments (timestamps) it drew from.
+The user asks a free-form question about a meeting — "what did they say
+about pricing?", "what did I commit to?", "when is the new date?" — and
+receives an answer grounded in that session's transcript (typically
+final; live sessions are US3), citing the moments (timestamps) it drew
+from.
 
 **Why this priority**: Summaries answer the questions the system
 predicts; Q&A answers the ones it can't. Together they make a recording
@@ -187,14 +189,17 @@ while a recording session runs undisturbed.
   supporting timestamp reference. The assistant MUST NOT present
   invented content as fact.
 - **FR-003**: The system MUST answer free-form questions about a
-  completed session's transcript, citing supporting segments, and MUST
-  state plainly when the transcript does not contain an answer.
-- **FR-004**: Q&A MUST support multi-turn conversations scoped to one
-  session, with follow-ups resolved in conversation context. A session
-  may hold multiple conversations: a question either starts a new
-  conversation or continues an existing one by id, and a session's
-  conversations are listable. Follow-up context never crosses
-  conversation boundaries.
+  session's transcript — final, interrupted, or (per FR-010) the
+  transcript-so-far of an active session — citing supporting segments,
+  and MUST state plainly when the transcript does not contain an
+  answer. Only summaries require a final transcript; questions work
+  whenever any transcript exists.
+- **FR-004**: Q&A MUST support multi-turn conversations. A conversation
+  is a top-level resource created with an explicit scope: the list of
+  sessions it may draw on (exactly one in v1; the shape admits more
+  later). Multiple conversations may exist over the same session; they
+  are listable (all, or filtered by session); follow-up context never
+  crosses conversation boundaries.
 - **FR-005**: Summaries and Q&A exchanges MUST be stored durably,
   associated with their session and the transcript version they derive
   from, retrievable without re-processing, and surviving restarts.
@@ -263,11 +268,12 @@ while a recording session runs undisturbed.
 - **AssistantTask**: One unit of assistant work (summary generation or
   answer generation) — state (`queued | running | completed | failed`),
   timestamps, failure reason.
-- **Conversation**: One of possibly several multi-turn Q&A exchanges
-  scoped to a session — identity, creation time, and an ordered list of
-  question/answer turns, each answer carrying citations (segment
-  references) and the transcript watermark it answered against (final,
-  or live-up-to-segment-N). Follow-up context is per-conversation; a
+- **Conversation**: A top-level multi-turn chat with the assistant about
+  a declared scope of sessions (exactly one in v1) — identity, creation
+  time, scope, and an ordered list of question/answer turns, each answer
+  carrying citations (session-qualified segment references) and the
+  transcript watermark it answered against (final, or
+  live-up-to-segment-N). Follow-up context is per-conversation; a
   conversation begun live continues seamlessly post-meeting.
 
 ## Out of Scope *(this feature)*
@@ -275,7 +281,9 @@ while a recording session runs undisturbed.
 - Any cloud/frontier-model escalation (separate future feature; would
   operate on redacted text per the constitution's router clause).
 - Cross-session search or questions spanning multiple meetings (future
-  library feature).
+  library feature — but the conversation model is shaped for it:
+  scope is a session list, restricted to length 1 in v1, so lifting the
+  restriction later is a retrieval upgrade, not a contract break).
 - Editing summaries; exporting to email/documents; calendar or task-tool
   integration.
 - A visual UI (the web UI feature will render these; this feature

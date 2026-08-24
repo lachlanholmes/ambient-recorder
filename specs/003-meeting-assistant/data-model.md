@@ -30,15 +30,18 @@ One summary *attempt* for a session. Current = newest non-failed.
 
 ## Conversation
 
+Top-level resource (analyze decision 2026-08-24): a chat with the
+assistant about a declared scope of sessions.
+
 | Field | Type | Rules |
 |-------|------|-------|
 | id | str (ULID) | |
-| session_id | str | FK → sessions |
+| session_ids | list[str] | The scope; **v1: exactly one** (validated at creation, 422 otherwise); shape admits more for future cross-session Q&A |
 | created_at | datetime (UTC) | |
-| born_live | bool | Started during an active session |
+| born_live | bool | Any scoped session was active at creation |
 
-- Multiple per session (clarification 2026-08-24); listable, append-only,
-  never superseded.
+- Multiple conversations may scope the same session; listable (all, or
+  filtered by session); append-only, never superseded.
 
 ## ConversationTurn
 
@@ -48,7 +51,7 @@ One summary *attempt* for a session. Current = newest non-failed.
 | seq | int | 0-based per conversation; store-assigned |
 | question | str | non-empty |
 | answer | str | grows while streaming; final on completion |
-| citations | list[Citation] | validated segment refs `{transcript_id, seq, start_s}` |
+| citations | list[Citation] | validated segment refs `{session_id, transcript_id, seq, start_s}` — session-qualified so cross-session scopes need no schema change |
 | watermark | str | `final` or `live:<segment seq>` — what the answer saw |
 | state | enum `streaming \| completed \| ungrounded \| declined \| failed \| interrupted` | `declined` = honest "not discussed"; `ungrounded` = assertions with zero valid citations (FR-002/R3); `interrupted` = recorder restart mid-answer, prefix kept |
 | asked_at / completed_at | datetime (UTC) | |
@@ -79,10 +82,17 @@ Startup reconciliation (R7): `running` summary → requeued from scratch;
 | model | str \| None |
 | reason | str \| None — remedy text, e.g. `model_missing: ollama pull llama3.2:3b` |
 
+## SummaryVersionInfo (API-only)
+
+List-item shape for the summaries version list: id, state, superseded
+(derived), model, created_at.
+
 ## SQLite notes
 
-- Tables `summaries`, `conversations`, `conversation_turns`,
+- Tables `summaries`, `conversations`, `conversation_sessions`
+  (join: conversation_id, session_id — the scope), `conversation_turns`,
   `assistant_tasks`; unique index `conversation_turns(conversation_id,
-  seq)`; index `summaries(session_id, created_at DESC)`.
+  seq)`; index `summaries(session_id, created_at DESC)`; index
+  `conversation_sessions(session_id)` for filtered listing.
 - Single writer: the assistant worker owns all writes to these tables.
 - Citations stored as JSON columns (bounded, read-only after write).
