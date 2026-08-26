@@ -153,6 +153,24 @@ def summarize(
     """Full pipeline. `generate` is called once per window + once per reduce
     tier; each call gets one retry on malformed structure."""
     win = windows(segments, window_s)
+    # Dense meetings can pack more text into a time window than the prompt
+    # budget allows (found live 2026-08-25 on the 69-min soak): re-split any
+    # oversized window by size so every map prompt fits the context.
+    budget_chars_map = budget_tokens * _CHARS_PER_TOKEN
+    sized: list[list[TranscriptSegment]] = []
+    for w in win:
+        cur: list[TranscriptSegment] = []
+        size = 0
+        for s in w:
+            cost = len(s.text) + 24
+            if cur and size + cost > budget_chars_map:
+                sized.append(cur)
+                cur, size = [], 0
+            cur.append(s)
+            size += cost
+        if cur:
+            sized.append(cur)
+    win = sized
     notes: list[str] = []
     excerpt_index: dict[int, Excerpt] = {}
     offset = 0
@@ -226,7 +244,8 @@ def summarize(
             actions.append(
                 ActionItem(text=task, owner=owner, deadline_text=deadline, citations=cits)
             )
-    overview = " ".join(sections.get("OVERVIEW", [])) or "No overview produced."
+    raw_overview = " ".join(sections.get("OVERVIEW", []))
+    overview = re.sub(r"\s+", " ", _MARKER.sub("", raw_overview)).strip() or "No overview produced."
     return SummaryContent(
         overview=overview,
         key_points=items("KEY POINTS"),
@@ -240,9 +259,12 @@ def _call_checked(generate: GenerateFn, prompt: str, system: str, *, require_ove
     for attempt in (1, 2):
         text = generate(prompt, system)
         sections = _parse_sections(text)
-        has_bullets = any(v for k, v in sections.items() if k != "OVERVIEW")
+        # Structure = the section HEADINGS were produced. An all-'none'
+        # window (e.g. a trailing "me: Hmm") is a valid empty result, not
+        # malformed — found live 2026-08-25 on the 69-min soak.
+        has_sections = any(k != "OVERVIEW" for k in sections)
         has_overview = bool(sections.get("OVERVIEW"))
-        if has_bullets or (require_overview and has_overview):
+        if has_sections or (require_overview and has_overview):
             return text
         if attempt == 1:
             prompt = (

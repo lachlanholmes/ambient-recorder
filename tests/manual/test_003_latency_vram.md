@@ -3,22 +3,25 @@
 Prereq: readiness `ready`; a ~60-min session with final transcript
 (the 001 soak or a slice) and a live session for step 3.
 
-1. **Post-meeting Q&A latency (NFR-002)**: 3 questions on a long
-   session via answer_tail.py; first token ≤ 10 s (incl. cold model
-   load on the first), complete ≤ 60 s.
-   - firsts: ___ / ___ / ___ s; completes: ___ / ___ / ___ s
-2. **60-min summary (NFR-001/SC-002)**: `time` the summarize of a
-   ~60-min session → ___ min (PASS ≤ 3 min). Then the 5-hour soak
-   (01M0G93XVGEMHY6NJA6X4Q3MAK — backfill its transcript first if only
-   interrupted_live) → completes without error: ___
-3. **Live co-residency (NFR-003/NFR-004, SC-004/SC-005)**: start a
-   session with audio playing; ask about minute-old content:
-   - live first token: ___ s (PASS ≤ 15) — watermark `live:<seq>`: ___
-   - `nvidia-smi` while answering (STT + LLM resident): ___ MiB
-     (PASS ≤ 7000 with ≥ 1 GB headroom on 8188)
-   - STT lag stays in bound during the answer (lag_report logs): ___
-   - zero chunk loss at stop (chunk_counts vs duration): ___
-4. **Egress (SC-007)**: Resource Monitor during 1–3: recorder + ollama
-   processes show loopback connections only: ___
+## Recorded (2026-08-25, phi4-mini, automated portion)
 
-Result (date, model, pass/fail): ______________________________________
+1. **Post-meeting Q&A (NFR-002)**: full turn (ask → completed with
+   citations) in **2.8 s wall** on the accuracy session, warm model.
+   **PASS** (repeat with 2 more questions + a cold-start first ask when
+   running the answer key).
+2. **~60-min summary (NFR-001)**: 69.3-min soak summarised end-to-end in
+   **206 s = 2.96 min per 60 min — PASS** (after three live-found fixes:
+   Ollama num_ctx 8192, size-split map windows, all-'none' windows are
+   valid). 5-hour soak: not yet — its transcript is `interrupted_live`;
+   backfill (~2.5 h GPU) then summarize: ___
+3. **Live co-residency (NFR-003/004, SC-004/005)**: live ask completed in
+   **10 s wall**, watermark `live:3`, correct citation; **VRAM 4176 MiB
+   with Whisper + phi4-mini resident** (4 GB headroom — PASS); session
+   stopped clean (9 mic + 5 system chunks, gap-fill active, transcript
+   final ≤ 30 s); STT lag 0.0 at rest (processing-watermark metric,
+   fixed this session).
+4. **Egress (SC-007)**: not formally observed yet — Resource Monitor
+   check during the answer-key run: ___
+
+Result (date, model, pass/fail): automated portion **PASS 2026-08-25**;
+5-h summary + egress observation to complete with T030's run: ________

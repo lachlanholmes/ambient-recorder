@@ -79,3 +79,32 @@ def test_second_reduce_tier_activates():
 def test_parse_sections_tolerates_inline_overview():
     s = _parse_sections("OVERVIEW: One line.\nKEY POINTS:\n- x [1]")
     assert s["OVERVIEW"] == ["One line."] and s["KEY POINTS"] == ["- x [1]".lstrip("- ")]
+
+
+def test_dense_window_split_by_budget():
+    """69-min soak (2026-08-25): a 20-min window overflowed the context and
+    the model returned prose. Oversized windows must split by size."""
+    calls = []
+
+    def gen(prompt, system):
+        calls.append(len(prompt))
+        return GOOD if "NOTES:" in prompt else FINAL
+
+    # one time-window, but far more text than a 300-token budget allows
+    segs = [seg(i, float(i), "dense meeting speech with many words " * 8) for i in range(30)]
+    summarize(segs, "s", gen, window_s=1200.0, budget_tokens=300)
+    map_calls = calls[:-1]
+    assert len(map_calls) > 1  # split happened
+    assert all(c < 300 * 4 + 700 for c in map_calls)  # each fits budget + template
+
+
+def test_all_none_window_is_valid_not_malformed():
+    """69-min soak (2026-08-25): a trailing near-empty window correctly
+    yields all-'none' sections; that is structure, not a malformed reply."""
+    def gen(prompt, system):
+        if "NOTES:" in prompt:
+            return "KEY POINTS:\n- none\nDECISIONS:\n- none\nACTION ITEMS:\n- none"
+        return FINAL
+
+    content = summarize([seg(0, 1.0, "Hmm")], "s", gen)
+    assert content.overview  # completed, no MalformedOutputError

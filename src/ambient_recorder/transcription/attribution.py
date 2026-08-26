@@ -90,6 +90,12 @@ class EnergyBuffer:
         t = self._tracks[track]
         return None if t.origin_s is None else t.origin_s + len(t.slots) * _RES_S
 
+    def covers_start(self, track: SourceKind, start_s: float) -> bool:
+        """True if the window still reaches back to `start_s` (i.e. a span
+        starting there could still become fully covered)."""
+        t = self._tracks[track]
+        return t.origin_s is not None and t.origin_s <= start_s
+
 
 def _tokens(text: str) -> set[str]:
     return set(_WORD.findall(text.lower()))
@@ -129,7 +135,23 @@ def attribute(
             own_db = energy.rms_db(own, c.start_s, c.end_s)
             other_db = energy.rms_db(other, c.start_s, c.end_s)
             if own_db is None or other_db is None:
-                deferred[own].append(c)
+                # Coverage may be pending (paired chunk not arrived) or
+                # EXPIRED (the rolling window slid past the span — found
+                # live 2026-08-24: candidates deferred during a slow start
+                # became permanently unjudgeable and lag grew unboundedly).
+                # Expired → keep the segment: an unjudgeable maybe-bleed is
+                # better kept than silently dropped.
+                expired = any(
+                    energy.rms_db(k, c.start_s, c.end_s) is None
+                    and (cu := energy.covered_until(k)) is not None
+                    and cu > c.end_s + 0.2
+                    and not energy.covers_start(k, c.start_s)
+                    for k in (own, other)
+                )
+                if expired:
+                    out.append(AttributedSegment(speaker, c.start_s, c.end_s, c.text))
+                else:
+                    deferred[own].append(c)
                 continue
             louder_other = other_db - own_db >= cfg.bleed_db
             if not louder_other:

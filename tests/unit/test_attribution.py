@@ -127,3 +127,26 @@ def test_field_case_different_segmentation_and_late_other_track():
     )
     assert [s.source.value for s in out] == ["them", "them"]  # mic copies dropped
     assert not deferred[MIC]
+
+
+def test_expired_window_emits_instead_of_deferring_forever():
+    """Live 2026-08-24: candidates deferred during a slow start became
+    permanently unjudgeable once the 30 s window slid past; lag grew
+    without bound. Expired spans must emit, not defer."""
+    e = EnergyBuffer(window_s=30.0)
+    e.add(MIC, 0.0, tone(40.0, 800))  # window now covers 10..40 on mic
+    # system track starts late and never covered 2..4
+    e.add(SYS, 35.0, tone(5.0, 8000))
+    mic = [TimedSegment(2.0, 4.0, "early words the window lost")]
+    out, deferred = attribute(mic, [], e, AttributionConfig())
+    assert [s.text for s in out] == ["early words the window lost"]
+    assert not deferred[MIC]
+
+
+def test_pending_coverage_still_defers():
+    e = EnergyBuffer(window_s=30.0)
+    e.add(MIC, 0.0, tone(10.0, 800))  # mic covers 0..10
+    # system track simply hasn't arrived yet — span could still be covered
+    mic = [TimedSegment(2.0, 4.0, "wait for the system chunk")]
+    out, deferred = attribute(mic, [], e, AttributionConfig())
+    assert out == [] and deferred[MIC] == mic

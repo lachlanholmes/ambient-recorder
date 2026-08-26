@@ -35,7 +35,10 @@ class OllamaEngine:
             "prompt": prompt,
             "stream": True,
             "keep_alive": self._keep_alive,
-            "options": {"num_predict": max_tokens, "temperature": 0.1},
+            # num_ctx: Ollama's default is 4096, which silently truncates
+            # summary-map prompts (found live 2026-08-25: 20-min windows
+            # overflowed it and the model returned unparseable prose).
+            "options": {"num_predict": max_tokens, "temperature": 0.1, "num_ctx": 8192},
         }
         if system:
             payload["system"] = system

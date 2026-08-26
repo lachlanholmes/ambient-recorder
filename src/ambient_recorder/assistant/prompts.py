@@ -20,7 +20,9 @@ SUMMARY_MAP_SYSTEM = (
     "Output exactly these sections, each a dash-bullet list (write 'none' "
     "if empty):\nKEY POINTS:\nDECISIONS:\nACTION ITEMS:\n"
     "For action items use: owner (me|them) | task | deadline (verbatim "
-    "spoken words, or '-')."
+    "spoken words, or '-'). Anything someone commits to DOING is an action "
+    "item, not a decision — e.g. spoken 'I will draft options by Friday' "
+    "becomes: - me | draft options | by Friday [7]"
 )
 
 SUMMARY_REDUCE_SYSTEM = (
@@ -28,7 +30,9 @@ SUMMARY_REDUCE_SYSTEM = (
     "citations like [3] intact, keep owners and verbatim deadlines. "
     "Output exactly these sections:\nOVERVIEW: (2-4 sentences)\n"
     "KEY POINTS:\nDECISIONS:\nACTION ITEMS:\n"
-    "Bullets as dashes; action items as: owner (me|them) | task | deadline."
+    "Bullets as dashes; action items as: owner (me|them) | task | deadline "
+    "(e.g. - me | draft options | by Friday [7]). Commitments to do "
+    "something are action items, never decisions."
 )
 
 

@@ -407,7 +407,11 @@ class TranscriptionWorker:
             ts.recent = [s for s in ts.recent if s.end_s >= cutoff]
 
     def _delivered_until(self, live: _LiveSession) -> float:
-        return min(t.emitted_until_s for t in live.tracks.values()) if live.tracks else 0.0
+        """Processing watermark: how far the worker has consumed each track's
+        chunks. NOT the last emitted segment — during silence there is
+        nothing to emit, and measuring emission made reported lag equal
+        'time since anyone spoke' (found live 2026-08-24)."""
+        return min(t.next_start_s for t in live.tracks.values()) if live.tracks else 0.0
 
     def _finalise_live(self, session_id: str) -> None:
         with self._live_lock:
