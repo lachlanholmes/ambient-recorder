@@ -150,3 +150,31 @@ def test_pending_coverage_still_defers():
     mic = [TimedSegment(2.0, 4.0, "wait for the system chunk")]
     out, deferred = attribute(mic, [], e, AttributionConfig())
     assert out == [] and deferred[MIC] == mic
+
+
+def test_expired_mic_with_system_twin_is_dropped_once():
+    """Regression 2026-08-27: the T038 rerun with 003's prewarm contention
+    produced 6/6 bleed duplicates — expired mic copies emitted despite the
+    system track having transcribed the same words. Expired + twin → drop."""
+    e = EnergyBuffer(window_s=30.0)
+    e.add(MIC, 0.0, tone(40.0, 800))
+    e.add(SYS, 35.0, tone(5.0, 8000))  # window slid past 2..4 on system
+    mic = [TimedSegment(2.0, 4.0, "good morning shall we start with the roadmap")]
+    sys = [TimedSegment(2.1, 4.1, "Good morning, shall we start with the roadmap?")]
+    out, deferred = attribute(mic, sys, e, AttributionConfig(),
+                              transcribed_until={MIC: 40.0, SYS: 40.0})
+    assert [s.source.value for s in out] == ["them"]  # exactly one copy survives
+    assert not deferred[MIC]
+
+
+def test_expired_system_never_twin_dropped():
+    """Asymmetry guard: if both tracks expired, only the mic side drops on
+    a twin — otherwise both copies could vanish."""
+    e = EnergyBuffer(window_s=30.0)
+    e.add(MIC, 100.0, tone(5.0, 800))  # both windows start far past the span
+    e.add(SYS, 100.0, tone(5.0, 8000))
+    mic = [TimedSegment(2.0, 4.0, "identical words here")]
+    sys = [TimedSegment(2.0, 4.0, "identical words here")]
+    out, _ = attribute(mic, sys, e, AttributionConfig(),
+                       transcribed_until={MIC: 105.0, SYS: 105.0})
+    assert "them" in [s.source.value for s in out]  # system copy always survives

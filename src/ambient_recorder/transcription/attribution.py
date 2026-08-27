@@ -21,7 +21,7 @@ _WORD = re.compile(r"[a-z0-9']+")
 class AttributionConfig:
     bleed_db: float = 6.0  # paired track louder by ≥ this → candidate is bleed
     overlap_ratio: float = 0.6  # ≥ this token overlap with a paired segment → same words
-    energy_window_s: float = 30.0
+    energy_window_s: float = 300.0  # must exceed worst-case STT backlog (regression 2026-08-27)
 
 
 @dataclass
@@ -48,7 +48,7 @@ class _Track:
 class EnergyBuffer:
     """Per-track RMS (dBFS) at 100 ms resolution over a rolling window."""
 
-    def __init__(self, window_s: float = 30.0):
+    def __init__(self, window_s: float = 300.0):
         self._max_slots = int(window_s / _RES_S)
         self._tracks: dict[SourceKind, _Track] = {k: _Track() for k in SourceKind}
 
@@ -139,8 +139,6 @@ def attribute(
                 # EXPIRED (the rolling window slid past the span — found
                 # live 2026-08-24: candidates deferred during a slow start
                 # became permanently unjudgeable and lag grew unboundedly).
-                # Expired → keep the segment: an unjudgeable maybe-bleed is
-                # better kept than silently dropped.
                 expired = any(
                     energy.rms_db(k, c.start_s, c.end_s) is None
                     and (cu := energy.covered_until(k)) is not None
@@ -149,6 +147,23 @@ def attribute(
                     for k in (own, other)
                 )
                 if expired:
+                    # Loudness is unjudgeable, but the TEXT test still works —
+                    # by expiry the other track has usually transcribed the
+                    # span (regression 2026-08-27: emitting unconditionally
+                    # produced 6/6 bleed duplicates under cold-start backlog).
+                    # Mic side only: bleed flows speakers→mic, never the
+                    # reverse, and asymmetry prevents twin-dropping BOTH
+                    # copies when both tracks expired. A same-words twin on
+                    # the system track → this mic copy is bleed → drop;
+                    # otherwise keep (better kept than lost).
+                    if own == SourceKind.MIC:
+                        nearby_x = [
+                            o for o in others
+                            if o.start_s < c.end_s + 1.0 and o.end_s > c.start_s - 1.0
+                        ]
+                        merged_x = " ".join(o.text for o in nearby_x)
+                        if nearby_x and _overlap_ratio(c.text, merged_x) >= cfg.overlap_ratio:
+                            continue
                     out.append(AttributedSegment(speaker, c.start_s, c.end_s, c.text))
                 else:
                     deferred[own].append(c)
