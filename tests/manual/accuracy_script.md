@@ -56,4 +56,8 @@ Result history:
   finalise flush is twin-aware. Verified by on-demand replay of the
   failing session's audio: **0 duplicates, all lines once, correctly
   attributed** (line 12 absent in the recording itself — spoken over
-  the optional replay). **Live re-run pending to confirm.**
+  the optional replay). **Live confirmation 2026-08-27 (session
+  01M12D37FHKMXRPE5EZBBEK8DN): 12/12 present, 100% attribution, 0 bleed
+  duplicates — PASS**, under full co-resident load (live STT + phi4-mini
+  pre-warm), i.e. stronger conditions than the original 08-23 pass.
+  Regression closed.
