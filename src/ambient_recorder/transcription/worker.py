@@ -431,21 +431,7 @@ class TranscriptionWorker:
                 )
                 return
             del self._live[session_id]
-        # Flush any pending candidates regardless of paired-track coverage.
-        for kind, ts in live.tracks.items():
-            if ts.pending:
-                for c in ts.pending:
-                    seg = self.store.append_segment(
-                        live.transcript_id,
-                        NewSegment(
-                            source=("me" if kind == SourceKind.MIC else "them"),  # type: ignore[arg-type]
-                            start_s=c.start_s,
-                            end_s=c.end_s,
-                            text=c.text,
-                        ),
-                    )
-                    self.stream.publish(live.transcript_id, SegmentFrame(segment=seg))
-                ts.pending = []
+        self._flush_pending(live, publish=True)
         now = utcnow()
         self.store.set_state(
             live.transcript_id, TranscriptState.COMPLETED, final=True, finalised_at=now
@@ -456,6 +442,34 @@ class TranscriptionWorker:
         )
         self.stream.close(live.transcript_id)
         jlog("transcription_finalised", session_id=session_id, transcript_id=live.transcript_id)
+
+    def _flush_pending(self, live: _LiveSession, *, publish: bool) -> None:
+        """Emit still-deferred candidates at finalise — twin-aware: an
+        unconditional dump re-emitted bleed the deferral had been holding
+        (field 2026-08-27, replay 3). Energy may be unavailable here, but
+        the text-twin test still applies on the mic side."""
+        from ambient_recorder.transcription.attribution import find_twin
+
+        for kind, ts in live.tracks.items():
+            for c in ts.pending:
+                if kind == SourceKind.MIC:
+                    others = self._recent_emitted(live, SourceKind.SYSTEM, [c]) + list(
+                        live.tracks[SourceKind.SYSTEM].pending
+                    )
+                    if find_twin(c, others, self.cfg.overlap_ratio):
+                        continue  # bleed: the system copy already exists
+                seg = self.store.append_segment(
+                    live.transcript_id,
+                    NewSegment(
+                        source=("me" if kind == SourceKind.MIC else "them"),  # type: ignore[arg-type]
+                        start_s=c.start_s,
+                        end_s=c.end_s,
+                        text=c.text,
+                    ),
+                )
+                if publish:
+                    self.stream.publish(live.transcript_id, SegmentFrame(segment=seg))
+            ts.pending = []
 
     def _fail_live(self, live: _LiveSession, session_id: str, reason: str) -> None:
         with self._live_lock:
@@ -544,18 +558,7 @@ class TranscriptionWorker:
         )
 
     def _finish_on_demand(self, item: _Item, state: _LiveSession) -> None:
-        for kind, ts in state.tracks.items():
-            for c in ts.pending:
-                self.store.append_segment(
-                    item.transcript_id,
-                    NewSegment(
-                        source=("me" if kind == SourceKind.MIC else "them"),  # type: ignore[arg-type]
-                        start_s=c.start_s,
-                        end_s=c.end_s,
-                        text=c.text,
-                    ),
-                )
-            ts.pending = []
+        self._flush_pending(state, publish=False)
         self._od_state.pop(item.transcript_id, None)
         now = utcnow()
         engine = self._engine.descriptor if self._engine else None

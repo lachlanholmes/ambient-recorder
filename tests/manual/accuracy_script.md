@@ -45,4 +45,15 @@ Result history:
   the unjudgeable mic copies unconditionally. Fixed same day: energy
   window widened to 300 s (must exceed worst-case STT backlog) and the
   expired path now applies the text-twin test (mic side only) before
-  emitting. **Re-run pending to confirm PASS.**
+  emitting. The confirmation rerun (session 01M12BH5JGQYXM014P6SXKNGWZ)
+  STILL failed 6/12 — root cause was deeper: mic AGC had closed the
+  bleed gap to 5.2 dB (under the 6 dB cliff), and Whisper fused bleed
+  with genuine speech into single segments. Rule rebuilt twin-first
+  (2026-08-27): a same-words/same-time twin is treated as bleed unless
+  the mic is clearly louder; fused segments get their bleed edge
+  trimmed; mic candidates always wait for the system track's text; twin
+  matching is per-segment (merged-text dilution defeated it); and the
+  finalise flush is twin-aware. Verified by on-demand replay of the
+  failing session's audio: **0 duplicates, all lines once, correctly
+  attributed** (line 12 absent in the recording itself — spoken over
+  the optional replay). **Live re-run pending to confirm.**
