@@ -1,9 +1,16 @@
 # 003 manual: answer-key accuracy (T030, SC-001/SC-003)
 
-## Recording the keyed meeting
+## Procedure — one command, no second person
 
-Record a scripted session (extend accuracy_runner.py's dialogue or read
-the script below aloud two-sided as in T038) containing exactly:
+```bash
+python tests/manual/assistant_runner.py
+```
+
+Exactly like the T038 runner: TTS plays the other participant through
+your speakers ("them"); you read each `[YOU say]` line aloud and press
+Enter. The runner then summarizes the session, asks the 10-question
+set, and prints all the scores for the sheet below (~5 minutes total).
+The embedded dialogue contains exactly:
 
 **5 decisions**: (1) ship Thursday the 14th; (2) keep the export button
 but move it; (3) pricing change goes to the board; (4) hire two
