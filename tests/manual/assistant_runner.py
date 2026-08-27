@@ -118,8 +118,37 @@ def main() -> int:
             input(f"  {i:2}. [YOU say ] {line!r}   — Enter when done ")
             time.sleep(0.5)
 
-    print("\nLetting the last chunks land (~15 s)...")
-    time.sleep(15)
+    # Verify every [YOU say] line actually landed in the transcript — a
+    # quiet take silently loses lines and no prompt can summarise missing
+    # words (field 2026-08-27: 3 of 10 keyed items were never captured).
+    print("\nVerifying your lines were captured (live transcript, ~20 s)...")
+    time.sleep(18)
+    for round_ in range(2):
+        me_text = " ".join(
+            s["text"].lower()
+            for s in httpx.get(f"{BASE}/sessions/{sid}/transcript").json()["segments"]
+            if s["source"] == "me"
+        )
+        me_tokens = set(_WORD.findall(me_text))
+        missing = []
+        for side, line in SCRIPT:
+            if side != "A":
+                continue
+            toks = set(_WORD.findall(line.lower())) - {"the", "a", "to", "and", "i", "it", "is"}
+            if toks and len(toks & me_tokens) / len(toks) < 0.5:
+                missing.append(line)
+        if not missing:
+            print("  all your lines captured.")
+            break
+        if round_ == 1:
+            print(f"  WARNING: still missing {len(missing)} line(s); results may score low.")
+            break
+        print(f"  {len(missing)} line(s) not captured — please re-read them, closer to the mic:")
+        for line in missing:
+            input(f"    [YOU say again] {line!r}   — Enter when done ")
+        print("  waiting for transcription (~20 s)...")
+        time.sleep(18)
+
     httpx.post(f"{BASE}/sessions/{sid}/stop")
     print("Waiting for the transcript to finalise...")
     ok = wait_for(

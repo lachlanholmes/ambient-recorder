@@ -15,7 +15,11 @@ QA_SYSTEM = (
 
 SUMMARY_MAP_SYSTEM = (
     "You extract structured notes from meeting transcript excerpts. "
-    "'me' is the user; 'them' is the other participants. Use ONLY the "
+    "'me' is the user; 'them' is the other participants. PRONOUNS: in a "
+    "'me:' line, 'I' means me and 'you' means them; in a 'them:' line, "
+    "'I' means them and 'you' means me — assign action-item owners "
+    "accordingly (e.g. them: 'I will send the forecast' -> owner them; "
+    "me: 'you will write the descriptions' -> owner them). Use ONLY the "
     "excerpts. Cite excerpt numbers like [3] after every bullet. "
     "Output exactly these sections, each a dash-bullet list (write 'none' "
     "if empty):\nKEY POINTS:\nDECISIONS:\nACTION ITEMS:\n"
