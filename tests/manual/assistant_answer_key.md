@@ -40,4 +40,22 @@ vacation policy):
 - Answerable: correct with ≥ 1 valid citation: ___ / 7 (PASS ≥ 90% → ≥ 6.3, i.e. 7/7 or 6/7)
 - Unanswerable: declined (state `declined`, no guess): ___ / 3 (PASS 3/3)
 
-Result (date, model, scores): ______________________________________
+Result (2026-08-27, phi4-mini, session 01M12GBE827DDVFNQFQX00ZYER,
+via assistant_runner.py): **PASS.**
+
+- Summary (SC-001): decisions **5/5**, action items **5/5** captured
+  (10/10 ≥ 9), owners **5/5** correct, deadlines verbatim; no
+  unsupported statements observed.
+- Q&A (SC-003): answerable **7/7** correct with valid citations —
+  the runner's keyword scorer flagged one ("who is writing the job
+  descriptions?" → answer "them [7]"), but the citation was manually
+  verified to point at the exact `them: "I will write the job
+  descriptions"` segment: correct and terse, a scorer artifact.
+  Unanswerable **3/3** declined.
+- Two earlier same-day runs informed fixes: a quiet take lost keyed
+  lines (→ the runner now verifies capture and prompts re-reads) and
+  owner attribution failed on first-person-in-them-lines (→ pronoun
+  mapping added to prompts; owners went 2/5 → 5/5).
+- Known runner wart: the capture-verification re-check can report lines
+  missing that are merely still deferred mid-session (both runs warned
+  yet scored 10/10) — advisory only.
