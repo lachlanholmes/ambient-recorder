@@ -118,9 +118,10 @@ def test_reduce_renumbered_citation_is_retried():
     assert content.key_points[0].citations[0].seq == 7  # real segment, not [6]
 
 
-def test_reduce_persistent_invalid_markers_stripped_not_miscited():
-    """If the retry still invents markers, the bullet loses its citation and
-    is dropped — never stored pointing at the wrong transcript moment."""
+def test_reduce_persistent_invalid_markers_recovered_by_inheritance():
+    """If the retry still invents markers, the invalid ones are stripped and
+    the bullet inherits citations from its matching map-stage bullet — the
+    stored citation is the CORRECT one, never the invented one."""
 
     def gen(prompt, system):
         if "NOTES:" in prompt:
@@ -129,7 +130,45 @@ def test_reduce_persistent_invalid_markers_stripped_not_miscited():
 
     content = summarize([seg(7, 1.0, "a point was made")], "s", gen)
     assert content.overview  # summary still completes
-    assert content.key_points == []  # uncited bullet dropped, not miscited
+    assert content.key_points[0].citations[0].seq == 7  # inherited, not [6]
+
+
+def test_map_prompts_use_local_numbers_translated_to_global():
+    """5-h repro (2026-09-01): the model cannot cite globally renumbered
+    excerpts. Each map prompt must number from [1]; code translates."""
+    map_prompts = []
+
+    def gen(prompt, system):
+        if "NOTES:" in prompt:
+            map_prompts.append(prompt)
+            return GOOD  # every window cites its local [1]
+        # final reduce echoes both translated bullets
+        return "OVERVIEW: Fine.\nKEY POINTS:\n- a point [1]\n- a point [2]\nDECISIONS:\n- none\nACTION ITEMS:\n- none"
+
+    segs = [seg(3, 1.0, "first window"), seg(9, 1300.0, "second window")]
+    content = summarize(segs, "s", gen, window_s=1200.0)
+    assert len(map_prompts) == 2
+    assert "[1]" in map_prompts[1] and "[2]" not in map_prompts[1]  # local numbering
+    cited = sorted(c.seq for kp in content.key_points for c in kp.citations)
+    assert cited == [3, 9]  # window 2's local [1] became global [2] -> seg 9
+
+
+def test_uncited_map_bullets_earn_a_retry():
+    """The commonest 5-h failure: map bullets with no citations at all."""
+    calls = []
+
+    def gen(prompt, system):
+        if "NOTES:" in prompt:
+            calls.append(prompt)
+            if len(calls) == 1:
+                return GOOD.replace(" [1]", "")  # bullets, zero citations
+            return GOOD
+        return FINAL
+
+    content = summarize([seg(7, 1.0, "a point was made")], "s", gen)
+    assert len(calls) == 2
+    assert "must end with the number of the excerpt" in calls[1]
+    assert content.key_points[0].citations[0].seq == 7
 
 
 def test_four_digit_markers_are_visible():

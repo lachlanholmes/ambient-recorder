@@ -7,6 +7,7 @@ line-oriented and forgiving, with one retry on malformed output.
 
 from __future__ import annotations
 
+import difflib
 import re
 from collections.abc import Callable
 
@@ -174,22 +175,35 @@ def summarize(
     notes: list[str] = []
     excerpt_index: dict[int, Excerpt] = {}
     offset = 0
+    source_bullets: list[tuple[str, list[Citation]]] = []
     for w in win:
+        # Excerpts are presented to the model with LOCAL numbers (1..N):
+        # the 5-h repro (2026-09-01) showed the model cannot reliably cite
+        # globally renumbered excerpts — windows numbered 1189.. got small
+        # invented markers or none at all, while windows numbered from 1
+        # cited correctly. Markers are translated to global numbers in code
+        # after validation, so uniqueness across windows never depends on
+        # the model.
         ex = _excerpts(w, session_id)
-        # renumber globally so citations survive the reduce
+        note = _call_checked(
+            generate,
+            summary_map_prompt(ex),
+            SUMMARY_MAP_SYSTEM,
+            require_overview=False,
+            allowed_markers={e.n for e in ex},
+            require_citations=True,
+        )
+        note = _MARKER.sub(lambda m, off=offset: f"[{int(m.group(1)) + off}]", note)
         for e in ex:
             e.n += offset
             excerpt_index[e.n] = e
         offset += len(ex)
-        notes.append(
-            _call_checked(
-                generate,
-                summary_map_prompt(ex),
-                SUMMARY_MAP_SYSTEM,
-                require_overview=False,
-                allowed_markers={e.n for e in ex},
-            )
-        )
+        notes.append(note)
+        for sec_bullets in _parse_sections(note).values():
+            for b in sec_bullets:
+                text, cits = _bullet_citations(b, excerpt_index)
+                if text and cits:
+                    source_bullets.append((text.lower(), cits))
 
     # second reduce tier if the notes themselves blow the budget
     budget_chars = budget_tokens * _CHARS_PER_TOKEN
@@ -237,10 +251,26 @@ def summarize(
     )
     sections = _parse_sections(final_text)
 
+    def _inherit(text: str, cits: list[Citation]) -> list[Citation]:
+        # A final bullet the model failed to cite inherits citations from
+        # the best-matching map-stage bullet (which carries verified global
+        # markers). Deterministic — the reduce model copying numbers is a
+        # bonus, not a requirement.
+        if cits or not source_bullets:
+            return cits
+        key = text.lower()
+        best_ratio, best_cits = 0.0, []
+        for src_text, src_cits in source_bullets:
+            r = difflib.SequenceMatcher(None, key, src_text).ratio()
+            if r > best_ratio:
+                best_ratio, best_cits = r, src_cits
+        return best_cits if best_ratio >= 0.55 else []
+
     def items(section: str) -> list[SummaryItem]:
         out = []
         for b in sections.get(section, []):
             text, cits = _bullet_citations(b, excerpt_index)
+            cits = _inherit(text, cits)
             if text and cits:
                 out.append(SummaryItem(text=text, citations=cits))
         return out
@@ -248,6 +278,7 @@ def summarize(
     actions: list[ActionItem] = []
     for b in sections.get("ACTION ITEMS", []):
         text, cits = _bullet_citations(b, excerpt_index)
+        cits = _inherit(text, cits)
         parsed = _parse_action(text)
         if parsed and cits:
             owner, task, deadline = parsed
@@ -279,6 +310,7 @@ def _call_checked(
     *,
     require_overview: bool,
     allowed_markers: set[int] | None = None,
+    require_citations: bool = False,
 ) -> str:
     """One retry if the output has no recognisable structure (R4), or if it
     cites markers that were not in its input. The latter guards the reduce
@@ -297,8 +329,14 @@ def _call_checked(
         has_sections = any(k != "OVERVIEW" for k in sections)
         has_overview = bool(sections.get("OVERVIEW"))
         structured = has_sections or (require_overview and has_overview)
-        invalid = _markers_in(text) - allowed_markers if allowed_markers is not None else set()
-        if structured and not invalid:
+        markers = _markers_in(text)
+        invalid = markers - allowed_markers if allowed_markers is not None else set()
+        # 5-h repro (2026-09-01): the commonest map failure is bullets with
+        # NO citations at all — those die downstream, so an entirely
+        # uncited-but-bulleted reply earns the retry too.
+        has_bullets = any(v for k, v in sections.items() if k != "OVERVIEW")
+        uncited = require_citations and has_bullets and not markers
+        if structured and not invalid and not uncited:
             return text
         if structured:
             fallback = _strip_markers(text, invalid)
@@ -307,6 +345,12 @@ def _call_checked(
                 prompt = (
                     prompt
                     + "\n\nIMPORTANT: use exactly the required section headings and dash bullets."
+                )
+            elif uncited:
+                prompt = (
+                    prompt
+                    + "\n\nIMPORTANT: every bullet must end with the number of the excerpt "
+                    + "that supports it, like [12]."
                 )
             else:
                 prompt = (

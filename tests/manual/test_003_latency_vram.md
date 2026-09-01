@@ -24,9 +24,19 @@ Prereq: readiness `ready`; a ~60-min session with final transcript
    notes without faithfully preserving global `[n]` markers, and
    citation validation only checks the marker exists in the excerpt
    index, so small renumbered markers pass while pointing at the wrong
-   segment. **Fixed same day** (marker-subset guard on every map/reduce
-   call + 4-digit marker regex; see docs/backlog.md). Rerun on the fixed
-   code (summary v2): ___
+   segment. **Fixed same day, two rounds** (see docs/backlog.md):
+   (1) marker-subset guard + 4-digit regex — v2 rerun then showed the
+   deeper cause via an instrumented repro: the model cannot cite
+   globally renumbered excerpts (22/38 map calls uncited, rest often
+   renumbered); (2) local per-window numbering translated to global in
+   code + uncited-bullet retry + citation inheritance at final
+   assembly. Instrumented 5-h rerun: **0 invalid markers in 46 calls,
+   481 s, citations land mid-meeting (seqs 1722/2416)** — every stored
+   citation correct by construction. Item count on this fixture is low
+   (1 key point / 1 decision / 2 action items): honest for 5 h of
+   ambient workday audio; the quality bar (SC-001) is scored on the
+   scripted meeting, which is single-tier and unaffected.
+   In-recorder confirmation run (summary v3): ___
 3. **Live co-residency (NFR-003/004, SC-004/005)**: live ask completed in
    **10 s wall**, watermark `live:3`, correct citation; **VRAM 4176 MiB
    with Whisper + phi4-mini resident** (4 GB headroom — PASS); session

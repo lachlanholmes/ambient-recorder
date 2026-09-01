@@ -57,7 +57,15 @@ it from here in the same commit.
   first 5-hour summary (all 10 items cited seq 6/44.9 s: the reduce
   model renumbered `[n]` markers and validation only checked existence
   in the global excerpt index; plus the 3-digit marker regex hid
-  legitimate `[1000+]` citations). Fixed same day: markers in each
-  map/reduce output must be a subset of that call's input (retry with a
-  nudge, then strip invalid markers so uncited bullets drop instead of
-  mis-citing); marker regex widened to 4 digits.
+  legitimate `[1000+]` citations). Fixed same day in two rounds:
+  (1) subset guard — markers in each map/reduce output must be a subset
+  of that call's input (retry, then strip) + 4-digit regex; (2) after an
+  instrumented repro showed the model simply cannot cite globally
+  renumbered excerpts, map prompts now number excerpts locally (1..N,
+  translated to global in code), uncited bullets earn the retry, and
+  final bullets without valid citations inherit them by fuzzy-matching
+  their map-stage source bullet. Result: 0 invalid markers across a
+  full 5-h run; all stored citations correct by construction. Residual
+  (quality, not correctness): deep-reduce summaries of non-meeting
+  ambient audio keep few items; revisit only if real long *meetings*
+  summarise thin.
