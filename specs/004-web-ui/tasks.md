@@ -88,7 +88,7 @@ testable in the browser against the running recorder.
 - [ ] T022 Performance validation against NFR-001/002/003: list render ≤ 1 s, live segment ≤ 1 s, 5-h session open ≤ 2 s with smooth scroll and bounded memory; record numbers in tests/manual/test_004_ui.md
 - [ ] T023 Capture-only validation: scratch data root without transcription/assistant; record quickstart Scenario 5 results (SC-005)
 - [ ] T024 Run the full quickstart.md walkthrough in a real browser (Scenarios 1–7 incl. devtools egress check SC-004), repeating Scenario 1 in Firefox (NFR-004), and record results in tests/manual/test_004_ui.md
-- [ ] T025 Docs: add the UI to docs/quickstart or README usage notes (open 127.0.0.1:8377 in a browser); note the layered-honesty behaviour
+- [X] T025 Docs: add the UI to docs/quickstart or README usage notes (open 127.0.0.1:8377 in a browser); note the layered-honesty behaviour
 
 ---
 
