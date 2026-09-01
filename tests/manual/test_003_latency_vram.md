@@ -48,8 +48,13 @@ Prereq: readiness `ready`; a ~60-min session with final transcript
    stopped clean (9 mic + 5 system chunks, gap-fill active, transcript
    final ≤ 30 s); STT lag 0.0 at rest (processing-watermark metric,
    fixed this session).
-4. **Egress (SC-007)**: not formally observed yet — Resource Monitor
-   check during the answer-key run: ___
+4. **Egress (SC-007)**: **PASS 2026-09-01** — user observed Resource
+   Monitor (Network → TCP Connections) during the 5-h summary runs and
+   a live ask: `python.exe` and `ollama.exe` on IPv4 loopback only
+   (Resource Monitor's label for 127.0.0.1); no non-loopback
+   connections.
 
 Result (date, model, pass/fail): automated portion **PASS 2026-08-25**;
-5-h summary + egress observation to complete with T030's run: ________
+5-h summary **PASS 2026-09-01** (534 s in-recorder, citations verified,
+after the two-round citation-integrity fix); egress **PASS 2026-09-01**
+(user-observed, loopback only). **T031 complete — 003 at 33/33.**
