@@ -53,3 +53,11 @@ it from here in the same commit.
   v1 guard).
 - ~~Loopback keep-alive~~ — resolved 2026-08-19 by zero-filling silence
   gaps in the capture writer (it bit: transcription timestamps drifted).
+- ~~Deep-reduce summary citations unreliable~~ — found 2026-09-01 on the
+  first 5-hour summary (all 10 items cited seq 6/44.9 s: the reduce
+  model renumbered `[n]` markers and validation only checked existence
+  in the global excerpt index; plus the 3-digit marker regex hid
+  legitimate `[1000+]` citations). Fixed same day: markers in each
+  map/reduce output must be a subset of that call's input (retry with a
+  nudge, then strip invalid markers so uncited bullets drop instead of
+  mis-citing); marker regex widened to 4 digits.

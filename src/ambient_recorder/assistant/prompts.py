@@ -31,7 +31,9 @@ SUMMARY_MAP_SYSTEM = (
 
 SUMMARY_REDUCE_SYSTEM = (
     "You merge meeting notes into a final summary. Deduplicate, keep "
-    "citations like [3] intact, keep owners and verbatim deadlines. "
+    "owners and verbatim deadlines. CITATIONS: copy citation numbers "
+    "like [317] EXACTLY as they appear in the notes — never renumber, "
+    "never invent a number that is not in the notes. "
     "Output exactly these sections:\nOVERVIEW: (2-4 sentences)\n"
     "KEY POINTS:\nDECISIONS:\nACTION ITEMS:\n"
     "Bullets as dashes; action items as: owner (me|them) | task | deadline "

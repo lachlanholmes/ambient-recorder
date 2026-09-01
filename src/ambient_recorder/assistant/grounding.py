@@ -9,7 +9,10 @@ from ambient_recorder.assistant.retrieval import Excerpt
 from ambient_recorder.models.assistant import Citation
 
 DECLINE_PHRASE = "not discussed in this meeting"
-_MARKER = re.compile(r"\[(\d{1,3})\]")
+# 4 digits: summaries renumber excerpts globally, and a 5-hour transcript
+# exceeds [999] (found 2026-09-01 — 3-digit cap made big markers invisible
+# to both citation collection and the reduce subset check).
+_MARKER = re.compile(r"\[(\d{1,4})\]")
 
 
 class GroundingVerdict(StrEnum):

@@ -183,7 +183,11 @@ def summarize(
         offset += len(ex)
         notes.append(
             _call_checked(
-                generate, summary_map_prompt(ex), SUMMARY_MAP_SYSTEM, require_overview=False
+                generate,
+                summary_map_prompt(ex),
+                SUMMARY_MAP_SYSTEM,
+                require_overview=False,
+                allowed_markers={e.n for e in ex},
             )
         )
 
@@ -201,6 +205,7 @@ def summarize(
                         summary_reduce_prompt(group),
                         SUMMARY_REDUCE_SYSTEM,
                         require_overview=False,
+                        allowed_markers=set().union(*(_markers_in(g) for g in group)),
                     )
                 )
                 group, size = [], 0
@@ -213,6 +218,7 @@ def summarize(
                     summary_reduce_prompt(group),
                     SUMMARY_REDUCE_SYSTEM,
                     require_overview=False,
+                    allowed_markers=set().union(*(_markers_in(g) for g in group)),
                 )
             )
         if len(merged) >= len(notes):  # no progress; bail to a single reduce
@@ -223,7 +229,11 @@ def summarize(
     # Always run the final reduce — even one window's notes need the
     # OVERVIEW-bearing final structure.
     final_text = _call_checked(
-        generate, summary_reduce_prompt(notes), SUMMARY_REDUCE_SYSTEM, require_overview=True
+        generate,
+        summary_reduce_prompt(notes),
+        SUMMARY_REDUCE_SYSTEM,
+        require_overview=True,
+        allowed_markers=set().union(set(), *(_markers_in(n) for n in notes)),
     )
     sections = _parse_sections(final_text)
 
@@ -254,8 +264,30 @@ def summarize(
     )
 
 
-def _call_checked(generate: GenerateFn, prompt: str, system: str, *, require_overview: bool) -> str:
-    """One retry if the output has no recognisable structure (R4)."""
+def _markers_in(text: str) -> set[int]:
+    return {int(m.group(1)) for m in _MARKER.finditer(text)}
+
+
+def _strip_markers(text: str, invalid: set[int]) -> str:
+    return _MARKER.sub(lambda m: "" if int(m.group(1)) in invalid else m.group(0), text)
+
+
+def _call_checked(
+    generate: GenerateFn,
+    prompt: str,
+    system: str,
+    *,
+    require_overview: bool,
+    allowed_markers: set[int] | None = None,
+) -> str:
+    """One retry if the output has no recognisable structure (R4), or if it
+    cites markers that were not in its input. The latter guards the reduce
+    tiers: the 5-h soak (2026-09-01) showed the merge model renumbering
+    citations, which then 'validated' against the global excerpt index while
+    pointing at the wrong segment. If the retry still invents markers, the
+    invalid ones are stripped — downstream drops uncited bullets, which is
+    honest; a wrong citation is not."""
+    fallback: str | None = None
     for attempt in (1, 2):
         text = generate(prompt, system)
         sections = _parse_sections(text)
@@ -264,11 +296,24 @@ def _call_checked(generate: GenerateFn, prompt: str, system: str, *, require_ove
         # malformed — found live 2026-08-25 on the 69-min soak.
         has_sections = any(k != "OVERVIEW" for k in sections)
         has_overview = bool(sections.get("OVERVIEW"))
-        if has_sections or (require_overview and has_overview):
+        structured = has_sections or (require_overview and has_overview)
+        invalid = _markers_in(text) - allowed_markers if allowed_markers is not None else set()
+        if structured and not invalid:
             return text
+        if structured:
+            fallback = _strip_markers(text, invalid)
         if attempt == 1:
-            prompt = (
-                prompt
-                + "\n\nIMPORTANT: use exactly the required section headings and dash bullets."
-            )
+            if not structured:
+                prompt = (
+                    prompt
+                    + "\n\nIMPORTANT: use exactly the required section headings and dash bullets."
+                )
+            else:
+                prompt = (
+                    prompt
+                    + "\n\nIMPORTANT: copy citation numbers exactly as they appear in the "
+                    + "input above; do not renumber and do not invent citations."
+                )
+    if fallback is not None:
+        return fallback
     raise MalformedOutputError("model output had no parseable structure after retry")

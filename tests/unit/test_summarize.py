@@ -98,6 +98,48 @@ def test_dense_window_split_by_budget():
     assert all(c < 300 * 4 + 700 for c in map_calls)  # each fits budget + template
 
 
+def test_reduce_renumbered_citation_is_retried():
+    """5-h soak (2026-09-01): the reduce model renumbered citations, which
+    'validated' against the global excerpt index while pointing at the wrong
+    segment. A marker outside the call's input must trigger a retry."""
+    reduce_calls = []
+
+    def gen(prompt, system):
+        if "NOTES:" in prompt:
+            return GOOD  # cites [1], the only excerpt
+        reduce_calls.append(prompt)
+        if len(reduce_calls) == 1:
+            return FINAL.replace("[1]", "[6]")  # invented marker
+        return FINAL
+
+    content = summarize([seg(7, 1.0, "a point was made")], "s", gen)
+    assert len(reduce_calls) == 2
+    assert "copy citation numbers exactly" in reduce_calls[1]
+    assert content.key_points[0].citations[0].seq == 7  # real segment, not [6]
+
+
+def test_reduce_persistent_invalid_markers_stripped_not_miscited():
+    """If the retry still invents markers, the bullet loses its citation and
+    is dropped — never stored pointing at the wrong transcript moment."""
+
+    def gen(prompt, system):
+        if "NOTES:" in prompt:
+            return GOOD
+        return FINAL.replace("[1]", "[6]")  # invalid both attempts
+
+    content = summarize([seg(7, 1.0, "a point was made")], "s", gen)
+    assert content.overview  # summary still completes
+    assert content.key_points == []  # uncited bullet dropped, not miscited
+
+
+def test_four_digit_markers_are_visible():
+    """Global renumbering exceeds [999] on 5-hour transcripts; the old
+    3-digit marker regex silently ignored those citations."""
+    from ambient_recorder.assistant.summarize import _markers_in
+
+    assert _markers_in("a point [1002], another [7]") == {1002, 7}
+
+
 def test_all_none_window_is_valid_not_malformed():
     """69-min soak (2026-08-25): a trailing near-empty window correctly
     yields all-'none' sections; that is structure, not a malformed reply."""
