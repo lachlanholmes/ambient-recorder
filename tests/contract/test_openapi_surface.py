@@ -16,8 +16,21 @@ EXPECTED = {
     ("/sessions/{session_id}/transcripts", "get"),
     ("/sessions/{session_id}/transcripts/{transcript_id}", "get"),
     ("/sessions/{session_id}/transcribe", "post"),
+    # feature 003 (contracts/rest-api.md)
+    ("/assistant/readiness", "get"),
+    ("/sessions/{session_id}/summarize", "post"),
+    ("/sessions/{session_id}/summary", "get"),
+    ("/sessions/{session_id}/summaries", "get"),
+    ("/sessions/{session_id}/summaries/{summary_id}", "get"),
+    ("/conversations", "post"),
+    ("/conversations", "get"),
+    ("/conversations/{cid}", "get"),
+    ("/conversations/{cid}/ask", "post"),
 }
-EXPECTED_WS = {"/sessions/{session_id}/transcript/stream"}
+EXPECTED_WS = {
+    "/sessions/{session_id}/transcript/stream",
+    "/conversations/{cid}/stream",
+}
 
 
 def test_openapi_contains_exactly_the_documented_routes(app):

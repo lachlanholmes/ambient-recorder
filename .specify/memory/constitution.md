@@ -1,7 +1,15 @@
 <!--
 Sync Impact Report
 ==================
-Version change: template (unversioned) → 1.0.0
+Version change: 1.0.0 → 1.0.1 (PATCH, 2026-08-24)
+Rationale: Environment Constraints correction discovered during feature
+003 planning (2026-08-24): Ollama was listed as installed with models
+available, but probing found no installation — the line predated reality.
+Feature 003's gate (c) installed Ollama 0.32.15 and pulled llama3.2:3b,
+qwen3:4b, phi4-mini; the environment line now reflects the actual state.
+No principle or normative statement changed.
+
+Previous: template (unversioned) → 1.0.0
 Rationale: Initial ratification — first concrete constitution replacing the
 untouched placeholder template. MAJOR.MINOR.PATCH starts at 1.0.0.
 
@@ -112,7 +120,9 @@ to not losing audio.
   `MSYS_NO_PATHCONV` path-mangling issues; prefer forward-slash paths.
 - Python with pinned dependencies; PyTorch is installed from the cu128 index
   using the uninstall-then-reinstall pattern (in-place upgrade does not work).
-- Ollama is the local LLM runtime (Qwen3, Llama 3.2 3B, Phi-4-mini available).
+- Ollama is the local LLM runtime (0.32.15, installed at feature 003
+  gate (c) 2026-08-24, loopback-only; phi4-mini, llama3.2:3b, qwen3:4b
+  pulled — phi4-mini is the measured default, see specs/003 research R2).
 - FFmpeg lives at `/c/Program Files/Ffmpeg/bin` (not on PATH — reference it
   explicitly).
 - HuggingFace token at `~/.transcribe.env` for gated model downloads.
@@ -141,4 +151,4 @@ This constitution supersedes ad-hoc practice for all work in this repository.
   so explicitly and justify it in the plan's Complexity Tracking section;
   unjustified violations block implementation.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-26 | **Last Amended**: 2026-07-26
+**Version**: 1.0.1 | **Ratified**: 2026-07-26 | **Last Amended**: 2026-08-24

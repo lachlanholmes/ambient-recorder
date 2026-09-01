@@ -8,14 +8,19 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from ambient_recorder.errors import (
+    AssistantNotReadyError,
+    ConversationNotFoundError,
     DeviceMissingError,
     DiskLowError,
     SessionNotActiveError,
     SessionNotFoundError,
     SessionStillActiveError,
+    SummaryNotFoundError,
     TranscriptionAlreadyRunningError,
     TranscriptionNotReadyError,
+    TranscriptNotFinalError,
     TranscriptNotFoundError,
+    TurnNotFoundError,
 )
 from ambient_recorder.logging import jlog
 from ambient_recorder.models.api import ErrorBody, ErrorCode, ErrorResponse
@@ -78,6 +83,28 @@ def register_error_handlers(app: FastAPI) -> None:
         return _envelope(
             409, ErrorCode.TRANSCRIPTION_ALREADY_RUNNING, str(exc), {"session_id": exc.session_id}
         )
+
+    @app.exception_handler(AssistantNotReadyError)
+    async def _assistant_not_ready(request: Request, exc: AssistantNotReadyError):
+        return _envelope(503, ErrorCode.ASSISTANT_NOT_READY, str(exc), {"reason": exc.reason})
+
+    @app.exception_handler(TranscriptNotFinalError)
+    async def _transcript_not_final(request: Request, exc: TranscriptNotFinalError):
+        return _envelope(
+            409, ErrorCode.TRANSCRIPT_NOT_FINAL, str(exc), {"session_id": exc.session_id}
+        )
+
+    @app.exception_handler(SummaryNotFoundError)
+    async def _summary_not_found(request: Request, exc: SummaryNotFoundError):
+        return _envelope(404, ErrorCode.SUMMARY_NOT_FOUND, str(exc), {"ref": exc.ref})
+
+    @app.exception_handler(ConversationNotFoundError)
+    async def _conversation_not_found(request: Request, exc: ConversationNotFoundError):
+        return _envelope(404, ErrorCode.CONVERSATION_NOT_FOUND, str(exc), {"cid": exc.cid})
+
+    @app.exception_handler(TurnNotFoundError)
+    async def _turn_not_found(request: Request, exc: TurnNotFoundError):
+        return _envelope(404, ErrorCode.TURN_NOT_FOUND, str(exc), {"ref": exc.ref})
 
     @app.exception_handler(RequestValidationError)
     async def _validation(request: Request, exc: RequestValidationError):

@@ -32,11 +32,40 @@ it from here in the same commit.
   stop was accidental). A `POST /shutdown` (finalise active session +
   transcript, then exit) would make "stop the recorder" a safe one-liner
   and pair naturally with the future tray/UI feature.
-- **Transcript summarisation / assistant (feature 003 candidate)**: the
-  LLM the 002 VRAM plan reserves ~3.5 GB for. Inputs are ready: `me`/`them`
-  segments with timestamps, current transcript per session, live stream.
+- **Cross-session Q&A**: the conversation model already scopes by
+  session list (restricted to 1 in v1) with session-qualified citations —
+  lifting the restriction is a retrieval upgrade (multi-transcript
+  excerpt selection + budget split). Natural core of the future
+  library/search feature.
+- **Embedding-based retrieval**: 003 uses lexical retrieval (research
+  R3); an embedding index would improve paraphrase recall on long
+  meetings at the cost of another model + storage. Revisit if the
+  answer-key scores show retrieval misses (not model misses).
+- **Proactive assistance**: the assistant only speaks when asked (003
+  scope decision); unprompted surfacing of action items/decisions
+  mid-meeting is future UI-era work.
+- **Frontier router (constitution I's opt-in clause)**: optional
+  escalation of *redacted transcript text* to a cloud model for hard
+  questions — explicitly a separate feature with its own consent UX;
+  never audio, never automatic.
 - **Storage retention / library management**: auto-cleanup and archival;
   explicitly deferred out of spec 001 (its disk-space threshold is the only
   v1 guard).
 - ~~Loopback keep-alive~~ — resolved 2026-08-19 by zero-filling silence
   gaps in the capture writer (it bit: transcription timestamps drifted).
+- ~~Deep-reduce summary citations unreliable~~ — found 2026-09-01 on the
+  first 5-hour summary (all 10 items cited seq 6/44.9 s: the reduce
+  model renumbered `[n]` markers and validation only checked existence
+  in the global excerpt index; plus the 3-digit marker regex hid
+  legitimate `[1000+]` citations). Fixed same day in two rounds:
+  (1) subset guard — markers in each map/reduce output must be a subset
+  of that call's input (retry, then strip) + 4-digit regex; (2) after an
+  instrumented repro showed the model simply cannot cite globally
+  renumbered excerpts, map prompts now number excerpts locally (1..N,
+  translated to global in code), uncited bullets earn the retry, and
+  final bullets without valid citations inherit them by fuzzy-matching
+  their map-stage source bullet. Result: 0 invalid markers across a
+  full 5-h run; all stored citations correct by construction. Residual
+  (quality, not correctness): deep-reduce summaries of non-meeting
+  ambient audio keep few items; revisit only if real long *meetings*
+  summarise thin.

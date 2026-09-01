@@ -21,6 +21,28 @@ in the codebase. See `.specify/memory/constitution.md`, Principle I.
   backfill of stored sessions, on faster-whisper `medium` (CUDA). Measured
   on the target RTX 4070: ~1.1 GB VRAM, live lag 2–15 s, on-demand ~2×
   real time on two-track meeting audio.
+- **Feature 003 — meeting assistant**: local LLM (Ollama) over the
+  transcripts — structured summaries with cited, owned action items;
+  multi-turn Q&A with citations and honest "not discussed" declines;
+  live in-meeting questions answered from the transcript-so-far. Answers
+  stream over `WS /conversations/{cid}/stream`.
+
+## Assistant setup (optional, constitution gate (c))
+
+Capture and transcription work without this; assistant endpoints report
+`not_installed`.
+
+```bash
+winget install Ollama.Ollama          # local runtime, loopback only
+ollama pull llama3.2:3b               # ~2 GB (the measured default; see specs/003 research R2)
+curl -s 127.0.0.1:8377/assistant/readiness   # expect ready:true
+# then: POST /sessions/<id>/summarize · POST /conversations {"session_ids":[...]}
+#       POST /conversations/<cid>/ask · python tests/manual/answer_tail.py <cid>
+```
+
+Knobs (env): `AMBREC_ASSISTANT_MODEL`, `AMBREC_OLLAMA_URL` (loopback
+enforced), `AMBREC_EXCERPT_BUDGET_TOKENS`, `AMBREC_ASSISTANT_IDLE_UNLOAD_S`
+(VRAM freed after idle; model stays resident during recording).
 
 ## Transcription setup (optional, constitution gate (c))
 

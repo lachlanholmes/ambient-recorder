@@ -29,6 +29,26 @@ class Settings(BaseModel):
     # beam 2 ≈ 3.9×, beam 5 ≈ 3.2×. NFR-002 requires ≥ 4×, so 1 is the
     # default; raise it to trade time for accuracy on a backfill you care about.
     on_demand_beam_size: int = Field(default=1, ge=1, le=8)
+    # feature 003 — assistant (research R1/R2/R6)
+    ollama_url: str = "http://127.0.0.1:11434"
+    assistant_model: str = "phi4-mini"
+    assistant_keep_alive_active: str = "30m"  # refreshed while a session is live
+    assistant_idle_unload_s: int = Field(default=600, ge=0)  # release after stop + idle
+    excerpt_budget_tokens: int = Field(default=3000, ge=200)
+    summary_window_s: float = Field(default=1200.0, gt=0)
+
+    @field_validator("ollama_url")
+    @classmethod
+    def _ollama_loopback_only(cls, v: str) -> str:
+        from urllib.parse import urlparse
+
+        host = urlparse(v).hostname
+        if host not in _LOOPBACK_HOSTS:
+            raise ValueError(
+                f"ollama_url must point at a loopback host {sorted(_LOOPBACK_HOSTS)}; "
+                f"got {host!r} (constitution I / FR-007: nothing leaves this machine)"
+            )
+        return v.rstrip("/")
 
     @property
     def models_dir(self) -> Path:
@@ -63,5 +83,11 @@ def load_settings() -> Settings:
         "bleed_db": os.environ.get("AMBREC_BLEED_DB"),
         "overlap_ratio": os.environ.get("AMBREC_OVERLAP_RATIO"),
         "on_demand_beam_size": os.environ.get("AMBREC_ON_DEMAND_BEAM_SIZE"),
+        "ollama_url": os.environ.get("AMBREC_OLLAMA_URL"),
+        "assistant_model": os.environ.get("AMBREC_ASSISTANT_MODEL"),
+        "assistant_keep_alive_active": os.environ.get("AMBREC_ASSISTANT_KEEP_ALIVE"),
+        "assistant_idle_unload_s": os.environ.get("AMBREC_ASSISTANT_IDLE_UNLOAD_S"),
+        "excerpt_budget_tokens": os.environ.get("AMBREC_EXCERPT_BUDGET_TOKENS"),
+        "summary_window_s": os.environ.get("AMBREC_SUMMARY_WINDOW_S"),
     }
     return Settings(**{k: v for k, v in env.items() if v is not None})

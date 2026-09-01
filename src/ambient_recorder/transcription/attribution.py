@@ -19,9 +19,15 @@ _WORD = re.compile(r"[a-z0-9']+")
 
 @dataclass
 class AttributionConfig:
-    bleed_db: float = 6.0  # paired track louder by ≥ this → candidate is bleed
+    bleed_db: float = 6.0  # paired track louder by ≥ this → strong bleed suspicion
+    # Mic clearly louder than system by MORE than this → genuine speech even
+    # when the words match (2026-08-27 regression: mic AGC closed the bleed
+    # gap to 5.2 dB, under bleed_db, and duplicates sailed through — with a
+    # strong text twin, matching words are near-proof by themselves, so
+    # energy only decides the clearly-mic-louder direction).
+    mic_louder_db: float = 3.0
     overlap_ratio: float = 0.6  # ≥ this token overlap with a paired segment → same words
-    energy_window_s: float = 30.0
+    energy_window_s: float = 300.0  # must exceed worst-case STT backlog (regression 2026-08-27)
 
 
 @dataclass
@@ -48,7 +54,7 @@ class _Track:
 class EnergyBuffer:
     """Per-track RMS (dBFS) at 100 ms resolution over a rolling window."""
 
-    def __init__(self, window_s: float = 30.0):
+    def __init__(self, window_s: float = 300.0):
         self._max_slots = int(window_s / _RES_S)
         self._tracks: dict[SourceKind, _Track] = {k: _Track() for k in SourceKind}
 
@@ -90,6 +96,12 @@ class EnergyBuffer:
         t = self._tracks[track]
         return None if t.origin_s is None else t.origin_s + len(t.slots) * _RES_S
 
+    def covers_start(self, track: SourceKind, start_s: float) -> bool:
+        """True if the window still reaches back to `start_s` (i.e. a span
+        starting there could still become fully covered)."""
+        t = self._tracks[track]
+        return t.origin_s is not None and t.origin_s <= start_s
+
 
 def _tokens(text: str) -> set[str]:
     return set(_WORD.findall(text.lower()))
@@ -104,6 +116,51 @@ def _overlap_ratio(a: str, b: str) -> float:
 
 def _time_overlap(a: TimedSegment, b: TimedSegment) -> bool:
     return a.start_s < b.end_s and b.start_s < a.end_s
+
+
+def _trim_twin_edge(cand_text: str, twin_text: str, ratio: float) -> str | None:
+    """Whisper sometimes FUSES a bleed sentence with the user's genuine
+    speech into one mic segment, at either edge (field 2026-08-27: prefix
+    'Good morning, shall we start…? Yes, let's begin' and suffix 'I saw
+    that. Do we have a new date? Thursday the 14th pending QA sign-o').
+    If either edge's words match the twin, return the genuine remainder;
+    '' if nothing remains; None if the twin is not concentrated at an edge."""
+    words = cand_text.split()
+    twin_tokens = _tokens(twin_text)
+    if not twin_tokens or not words:
+        return None
+    k = min(len(words), max(len(twin_tokens), 1))
+
+    def edge_ratio(chunk: list[str]) -> float:
+        toks = _tokens(" ".join(chunk))
+        return len(toks & twin_tokens) / len(toks) if toks else 0.0
+
+    if edge_ratio(words[:k]) >= ratio:  # bleed at the start
+        remainder = " ".join(words[k:]).strip()
+    elif edge_ratio(words[-k:]) >= ratio:  # bleed at the end
+        remainder = " ".join(words[:-k]).strip()
+    else:
+        return None
+    return remainder if len(_tokens(remainder)) >= 2 else ""
+
+
+def find_twin(c: TimedSegment, others: list[TimedSegment], ratio: float) -> str | None:
+    """Best same-words match for `c` among time-overlapping (±1 s) paired
+    segments. Checked per-segment AND merged: per-segment because merging
+    two unrelated sentences dilutes the ratio below threshold (field
+    2026-08-27, replay 3 — a fused candidate scored exactly 0.5 against the
+    merge of its twin plus an unrelated line); merged because one candidate
+    can span words that the paired track split across two segments."""
+    nearby = [o for o in others if o.start_s < c.end_s + 1.0 and o.end_s > c.start_s - 1.0]
+    if not nearby:
+        return None
+    best = max(nearby, key=lambda o: _overlap_ratio(c.text, o.text))
+    if _overlap_ratio(c.text, best.text) >= ratio:
+        return best.text
+    merged = " ".join(o.text for o in nearby)
+    if _overlap_ratio(c.text, merged) >= ratio:
+        return merged
+    return None
 
 
 def attribute(
@@ -129,27 +186,65 @@ def attribute(
             own_db = energy.rms_db(own, c.start_s, c.end_s)
             other_db = energy.rms_db(other, c.start_s, c.end_s)
             if own_db is None or other_db is None:
-                deferred[own].append(c)
+                # Coverage may be pending (paired chunk not arrived) or
+                # EXPIRED (the rolling window slid past the span — found
+                # live 2026-08-24: candidates deferred during a slow start
+                # became permanently unjudgeable and lag grew unboundedly).
+                expired = any(
+                    energy.rms_db(k, c.start_s, c.end_s) is None
+                    and (cu := energy.covered_until(k)) is not None
+                    and cu > c.end_s + 0.2
+                    and not energy.covers_start(k, c.start_s)
+                    for k in (own, other)
+                )
+                if expired:
+                    # Loudness is unjudgeable, but the TEXT test still works —
+                    # by expiry the other track has usually transcribed the
+                    # span (regression 2026-08-27: emitting unconditionally
+                    # produced 6/6 bleed duplicates under cold-start backlog).
+                    # Mic side only: bleed flows speakers→mic, never the
+                    # reverse, and asymmetry prevents twin-dropping BOTH
+                    # copies when both tracks expired. A same-words twin on
+                    # the system track → this mic copy is bleed → drop;
+                    # otherwise keep (better kept than lost).
+                    if own == SourceKind.MIC and find_twin(c, others, cfg.overlap_ratio):
+                        continue
+                    out.append(AttributedSegment(speaker, c.start_s, c.end_s, c.text))
+                else:
+                    deferred[own].append(c)
                 continue
-            louder_other = other_db - own_db >= cfg.bleed_db
-            if not louder_other:
+            # Twin-first (2026-08-27 regression): matching words at matching
+            # times on the paired track are near-proof of bleed regardless of
+            # a precise loudness gap — mic AGC can shrink the gap below any
+            # fixed threshold. Energy only decides the clearly-mic-louder
+            # direction (genuine speech), and mic-side only (bleed flows
+            # speakers→mic).
+            clearly_own_louder = own_db - other_db > cfg.mic_louder_db
+            if own == SourceKind.SYSTEM:
+                # System side always emits: loopback cannot contain mic bleed.
                 out.append(AttributedSegment(speaker, c.start_s, c.end_s, c.text))
                 continue
-            # The other track is much louder here: these words might be bleed.
-            # Whisper segments the two tracks differently, so compare against
-            # the other track's *concatenated* text over this span (±1 s), not
-            # segment-by-segment. If the other track has no transcribed text
-            # covering this span yet (its chunk is still queued), defer rather
-            # than guess — field-verified at gate (c): without this, bleed that
-            # arrives one chunk later was emitted twice.
-            nearby = [o for o in others if o.start_s < c.end_s + 1.0 and o.end_s > c.start_s - 1.0]
+            # mic side from here. ALWAYS wait for the system track's text over
+            # this span — even when the mic is clearly louder: a loud segment
+            # can be bleed FUSED with genuine speech, and judging before the
+            # twin is visible emits the fusion whole (field 2026-08-27, second
+            # replay). Chunks interleave, so the wait is ~one worker step.
             if other in tu and tu[other] < c.end_s - 0.5:
-                deferred[own].append(c)  # other track not transcribed this far yet
+                deferred[own].append(c)  # system text pending; don't guess
                 continue
-            merged = " ".join(o.text for o in nearby)
-            if nearby and _overlap_ratio(c.text, merged) >= cfg.overlap_ratio:
-                continue  # bleed: the paired track owns these words
-            out.append(AttributedSegment(speaker, c.start_s, c.end_s, c.text))
+            twin_text = find_twin(c, others, cfg.overlap_ratio)
+            if twin_text is None:
+                out.append(AttributedSegment(speaker, c.start_s, c.end_s, c.text))
+                continue
+            if clearly_own_louder:
+                # Mic is genuinely loud over the span: either the user echoed
+                # the words (drop-worthy duplicate) or Whisper FUSED bleed
+                # with genuine speech — trim the bleed edge, keep the rest.
+                remainder = _trim_twin_edge(c.text, twin_text, cfg.overlap_ratio)
+                if remainder:
+                    out.append(AttributedSegment(speaker, c.start_s, c.end_s, remainder))
+                continue  # full echo/bleed: drop
+            continue  # twin + mic not clearly louder: bleed, system owns it
 
     decide(SourceKind.MIC, mic, system)
     decide(SourceKind.SYSTEM, system, mic)

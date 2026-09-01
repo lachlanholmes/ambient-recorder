@@ -112,7 +112,12 @@ def main() -> int:
         present += is_present
         correct += is_correct and not is_bleed
         bleed += is_bleed
-        verdict = "BLEED-DUP" if is_bleed else ("ok" if is_correct else ("wrong side" if is_present else "MISSING"))
+        if is_bleed:
+            verdict = "BLEED-DUP"
+        elif is_correct:
+            verdict = "ok"
+        else:
+            verdict = "wrong side" if is_present else "MISSING"
         print(f"{i:>2} {want:>4} {cov_me:>4.0%} {cov_them:>5.0%}  {verdict}")
 
     n = len(SCRIPT)
