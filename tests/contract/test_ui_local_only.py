@@ -26,6 +26,13 @@ PROTOCOL_RELATIVE = re.compile(
 )
 
 
+# Text assets are scanned line by line; binary assets (images) can't carry a
+# loadable URL past the CSP, but keep them to a known set so nothing
+# unexpected ships.
+TEXT_SUFFIXES = {".html", ".css", ".js", ".svg", ".json", ".txt", ".md"}
+BINARY_SUFFIXES = {".png", ".ico"}
+
+
 def _shipped_files() -> list[Path]:
     return sorted(p for p in UI_DIR.rglob("*") if p.is_file())
 
@@ -36,9 +43,20 @@ def test_ui_directory_ships_the_shell():
     assert (UI_DIR / "js" / "app.js").is_file()
 
 
+def test_only_known_asset_types_ship():
+    unexpected = [
+        str(p.relative_to(UI_DIR))
+        for p in _shipped_files()
+        if p.suffix.lower() not in TEXT_SUFFIXES | BINARY_SUFFIXES
+    ]
+    assert not unexpected, f"unexpected asset types shipped: {unexpected}"
+
+
 def test_no_non_loopback_urls_in_shipped_ui_files():
     offenders: list[str] = []
     for path in _shipped_files():
+        if path.suffix.lower() in BINARY_SUFFIXES:
+            continue
         text = path.read_text(encoding="utf-8")
         for lineno, line in enumerate(text.splitlines(), start=1):
             if ABSOLUTE.search(line) or PROTOCOL_RELATIVE.search(line):

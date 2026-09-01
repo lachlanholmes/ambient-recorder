@@ -83,11 +83,11 @@ testable in the browser against the running recorder.
 
 ## Phase 6: Polish & validation
 
-- [ ] T020 [P] Multi-tab pass: verify both tabs converge within a poll tick on start/stop and both live streams show identical segments (quickstart Scenario 6.2); fix any client assumption that breaks idempotence (R8)
-- [ ] T021 [P] Reconnect fidelity pass: close/reopen mid-meeting and diff the reassembled transcript against `GET /sessions/<id>/transcript` (quickstart Scenario 2, SC-002)
-- [ ] T022 Performance validation against NFR-001/002/003: list render ≤ 1 s, live segment ≤ 1 s, 5-h session open ≤ 2 s with smooth scroll and bounded memory; record numbers in tests/manual/test_004_ui.md
-- [ ] T023 Capture-only validation: scratch data root without transcription/assistant; record quickstart Scenario 5 results (SC-005)
-- [ ] T024 Run the full quickstart.md walkthrough in a real browser (Scenarios 1–7 incl. devtools egress check SC-004), repeating Scenario 1 in Firefox (NFR-004), and record results in tests/manual/test_004_ui.md
+- [X] T020 [P] Multi-tab pass: verify both tabs converge within a poll tick on start/stop and both live streams show identical segments (quickstart Scenario 6.2); fix any client assumption that breaks idempotence (R8)
+- [X] T021 [P] Reconnect fidelity pass: close/reopen mid-meeting and diff the reassembled transcript against `GET /sessions/<id>/transcript` (quickstart Scenario 2, SC-002)
+- [X] T022 Performance validation against NFR-001/002/003: list render ≤ 1 s, live segment ≤ 1 s, 5-h session open ≤ 2 s with smooth scroll and bounded memory; record numbers in tests/manual/test_004_ui.md
+- [X] T023 Capture-only validation: scratch data root without transcription/assistant; record quickstart Scenario 5 results (SC-005)
+- [X] T024 Run the full quickstart.md walkthrough in a real browser (Scenarios 1–7 incl. devtools egress check SC-004), repeating Scenario 1 in Firefox (NFR-004), and record results in tests/manual/test_004_ui.md
 - [X] T025 Docs: add the UI to docs/quickstart or README usage notes (open 127.0.0.1:8377 in a browser); note the layered-honesty behaviour
 
 ---

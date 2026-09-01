@@ -9,8 +9,9 @@ export function el(tag, ...args) {
     if (a == null) continue;
     if (typeof a === "string" || typeof a === "number") node.append(String(a));
     else if (a instanceof Node) node.append(a);
-    else if (Array.isArray(a)) for (const c of a) if (c != null) node.append(c);
-    else {
+    else if (Array.isArray(a)) {
+      for (const c of a) if (c != null) node.append(c);
+    } else {
       for (const [k, v] of Object.entries(a)) {
         if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2), v);
         else if (v === true) node.setAttribute(k, "");

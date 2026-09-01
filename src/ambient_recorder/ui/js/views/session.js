@@ -219,6 +219,9 @@ export async function renderSessionView(root, sessionId, state) {
   function maybeStartTail() {
     const liveish = session.status === "active" || ["live", "finalising"].includes(tState);
     if (tail || destroyed || !liveish) return;
+    // A failed/interrupted/completed transcript on an active session has no
+    // stream to tail (capture-only sessions fail their live attempt visibly).
+    if (transcript && !["live", "finalising", "pending"].includes(tState)) return;
     if (!transcript && !state.transcription?.ready) return; // capture-only: nothing to tail
     vl.setFollowMode(true);
     tail = tailTranscript({
@@ -229,6 +232,10 @@ export async function renderSessionView(root, sessionId, state) {
         tState = frame.state;
         lag = frame.lag_s;
         tFinal = frame.final;
+        if (transcript) {
+          transcript.state = frame.state;
+          transcript.final = frame.final;
+        }
         noTranscript = false;
         renderTranscriptHead();
         renderTranscriptBody();
@@ -259,6 +266,8 @@ export async function renderSessionView(root, sessionId, state) {
     } else {
       transcript.job = t.job;
       transcript.pending_job = t.pending_job;
+      transcript.state = t.state;
+      transcript.final = t.final;
       tState = t.state;
       tFinal = t.final;
       lag = t.job?.lag_s ?? lag;

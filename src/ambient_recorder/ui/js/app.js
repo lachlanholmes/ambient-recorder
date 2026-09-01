@@ -203,8 +203,11 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+// Boot: the route renders as soon as the session list arrives (NFR-001);
+// readiness probes (VRAM, Ollama) can take longer and fill in as they land.
 renderReadiness();
-pollFast().then(() => pollList(true).then(renderRoute));
+pollList(true).then(renderRoute);
+pollFast();
 setInterval(pollFast, POLL_FAST_MS);
 setInterval(pollList, POLL_LIST_MS);
 setInterval(tick1s, 1000);
