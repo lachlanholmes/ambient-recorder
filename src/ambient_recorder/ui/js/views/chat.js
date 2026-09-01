@@ -170,6 +170,11 @@ export async function renderChatPane(panel, sessionId, state, ctx) {
   }
 
   function render() {
+    // Keep the user's draft question and focus across re-renders
+    // (poll-driven updates can redraw while they type).
+    const prevAsk = panel.querySelector(".ask-row input");
+    const draft = prevAsk ? prevAsk.value : "";
+    const hadFocus = prevAsk != null && document.activeElement === prevAsk;
     clear(panel);
     streamNode = null;
     const head = el("div.panel-head", el("h2", "Assistant"));
@@ -216,6 +221,7 @@ export async function renderChatPane(panel, sessionId, state, ctx) {
     if (ready) {
       const input = el("input", { type: "text", placeholder: "Ask about this session…",
         maxlength: "2000" });
+      input.value = draft;
       input.addEventListener("keydown", (ev) => {
         if (ev.key === "Enter") {
           ask(input.value);
@@ -230,6 +236,7 @@ export async function renderChatPane(panel, sessionId, state, ctx) {
             input.value = "";
           },
         })));
+      if (hadFocus) input.focus();
       if (state.health?.active_session_id === sessionId) {
         panel.append(el("div.hint",
           "Live meeting — answers use the transcript captured so far."));

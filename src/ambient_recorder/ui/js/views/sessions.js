@@ -35,10 +35,20 @@ export async function renderSessionsView(root, state) {
 
   // ---- start / stop controls (FR-004) ----------------------------------
 
+  let lastStartKey = null;
+
   function renderStart() {
+    const activeId = state.health?.active_session_id || null;
+    const key = `${activeId}|${busy}|${startError || ""}`;
+    // Idle panel unchanged: skip the re-render so the title box keeps
+    // the user's text and focus across poll ticks.
+    if (!activeId && key === lastStartKey) return;
+    lastStartKey = key;
+    const prevInput = startPanel.querySelector(".start-row input");
+    const prevTitle = prevInput ? prevInput.value : "";
+    const hadFocus = prevInput != null && document.activeElement === prevInput;
     clear(startPanel);
     startPanel.append(el("h2", "Record"));
-    const activeId = state.health?.active_session_id;
     if (activeId) {
       const active = state.activeSession;
       const elapsed = active
@@ -59,6 +69,7 @@ export async function renderSessionsView(root, state) {
     } else {
       const input = el("input", { type: "text", placeholder: "Session title (optional)",
         maxlength: "200" });
+      input.value = prevTitle;
       input.addEventListener("keydown", (ev) => {
         if (ev.key === "Enter") start(input.value);
       });
@@ -71,6 +82,7 @@ export async function renderSessionsView(root, state) {
           }),
         ),
       );
+      if (hadFocus) input.focus();
     }
     if (startError) startPanel.append(el("div.error-line", startError));
   }
