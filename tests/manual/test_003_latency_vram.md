@@ -36,7 +36,12 @@ Prereq: readiness `ready`; a ~60-min session with final transcript
    (1 key point / 1 decision / 2 action items): honest for 5 h of
    ambient workday audio; the quality bar (SC-001) is scored on the
    scripted meeting, which is single-tier and unaffected.
-   In-recorder confirmation run (summary v3): ___
+   In-recorder confirmation run (summary v3, 2026-09-01): **completed
+   in 534 s (8 m 54 s)**; 4 items, all cited, citations span minutes
+   168–276 of the meeting; spot-check confirmed seq 2966 is the exact
+   Columbus/Indigenous-People's-Day discussion its action item cites.
+   **SC-002 5-hour clause: PASS** (completes without error, condensation
+   covers the full transcript, citations correct by construction).
 3. **Live co-residency (NFR-003/004, SC-004/005)**: live ask completed in
    **10 s wall**, watermark `live:3`, correct citation; **VRAM 4176 MiB
    with Whisper + phi4-mini resident** (4 GB headroom — PASS); session
