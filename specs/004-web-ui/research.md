@@ -23,8 +23,11 @@
 
 - **Decision**: `StaticFiles(directory=<pkg>/ui, html=True)` mounted at
   `/` **after** all routers in `create_app`, via a small
-  `api/static_ui.py` helper that also adds `Content-Security-Policy:
-  default-src 'self'; connect-src 'self' ws:` on UI responses. Assets
+  `api/static_ui.py` helper that also adds the response header
+  `Content-Security-Policy: default-src 'self'; connect-src 'self'
+  ws://127.0.0.1:* ws://localhost:*` on UI responses (header, not a
+  meta tag — it covers every UI response and cannot be edited out of a
+  cached page). Assets
   are included in the wheel (hatch package data). If the ui directory
   is missing (dev edge), the app still serves the API and logs a
   warning — the UI is a layer, like everything else.

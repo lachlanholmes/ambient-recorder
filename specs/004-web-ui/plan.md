@@ -60,7 +60,7 @@ page
 
 | Principle | Status | Evidence |
 |-----------|--------|----------|
-| I. Local-First, Privacy by Default | PASS | All assets ship in the package; CI test scans UI files for non-loopback URLs; a CSP `default-src 'self'` meta tag enforces it in the browser; SC-004 verifies in devtools. No analytics, no fonts, no CDN. |
+| I. Local-First, Privacy by Default | PASS | All assets ship in the package; CI test scans UI files for non-loopback URLs; a CSP **response header** (`default-src 'self'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*`) enforces it in the browser; SC-004 verifies in devtools. No analytics, no fonts, no CDN. |
 | II. Typed Contracts at Every Boundary | PASS | The UI consumes only the existing typed REST/WS contracts (consumption map in [contracts/ui-consumption.md](contracts/ui-consumption.md)); zero new endpoints planned; FR-012 routes any future need through contract-first. |
 | III. VRAM Budget | PASS (N/A) | No models; the UI adds zero GPU cost. |
 | IV. Phased Delivery with Checkpoint Gates | PASS | Gate (a) spec approved; gate (b) this plan. **Gates (c) and (d) NOT triggered** — first feature with no heavy dependencies and no device access at all. |

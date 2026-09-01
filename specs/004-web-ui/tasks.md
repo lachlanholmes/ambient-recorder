@@ -28,7 +28,7 @@ testable in the browser against the running recorder.
 - [ ] T002 [P] Contract test in tests/contract/test_ui_serving.py: `GET /` serves index.html with the CSP header; `GET /sessions` still returns API JSON (mount-order guard); missing ui/ dir degrades to 404 + warning with API unaffected; OpenAPI surface guard remains exactly the 001–003 route set
 - [ ] T003 [P] Contract test in tests/contract/test_ui_local_only.py: every shipped file under src/ambient_recorder/ui/ contains no non-loopback URL (scan for `https?://` and protocol-relative `//`; allowlist 127.0.0.1/localhost) (FR-002)
 - [ ] T004 Static serving in src/ambient_recorder/api/static_ui.py: mount `StaticFiles(html=True)` at `/` after all routers in create_app; add `Content-Security-Policy: default-src 'self'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*` and `Cache-Control: no-cache` (index) on UI responses; log a warning and skip the mount if ui/ is missing (R2)
-- [ ] T005 [P] App shell in src/ambient_recorder/ui/index.html + style.css: semantic layout (header with readiness slots, main view container), me/them palette, status-pill / chip / state classes, monospace timestamps — the states shown in the approved mockup slideshow
+- [ ] T005 [P] App shell in src/ambient_recorder/ui/index.html + style.css: semantic layout (header with readiness slots, main view container), me/them palette, status-pill / chip / state classes, monospace timestamps — per the design tokens and component sketches in specs/004-web-ui/ui-notes.md
 - [ ] T006 [P] API client in src/ambient_recorder/ui/js/api.js: thin typed fetch wrappers for every endpoint in contracts/ui-consumption.md, surfacing the API error envelope (code + message) to callers
 - [ ] T007 Boot/routing/poll loop in src/ambient_recorder/ui/js/app.js: hash routes `#/` and `#/session/<id>`; visible-tab polling (readiness+health 3 s, session list 5 s, paused on document.hidden); failed health poll flips a "recorder disconnected — retrying" banner and first success re-bootstraps all panels (R5, FR-011)
 - [ ] T008 Stream helpers in src/ambient_recorder/ui/js/streams.js: transcript tail (REST snapshot then `?after=<seq>` WS tail, cursor-based reconnect with 1 s → 10 s backoff) and answer stream (subscribe on ask, token frames, terminal status then re-fetch stored turn) — the two contracts exactly as documented, no new semantics (R4)
@@ -87,7 +87,7 @@ testable in the browser against the running recorder.
 - [ ] T021 [P] Reconnect fidelity pass: close/reopen mid-meeting and diff the reassembled transcript against `GET /sessions/<id>/transcript` (quickstart Scenario 2, SC-002)
 - [ ] T022 Performance validation against NFR-001/002/003: list render ≤ 1 s, live segment ≤ 1 s, 5-h session open ≤ 2 s with smooth scroll and bounded memory; record numbers in tests/manual/test_004_ui.md
 - [ ] T023 Capture-only validation: scratch data root without transcription/assistant; record quickstart Scenario 5 results (SC-005)
-- [ ] T024 Run the full quickstart.md walkthrough in a real browser (Scenarios 1–7 incl. devtools egress check SC-004) and record results in tests/manual/test_004_ui.md
+- [ ] T024 Run the full quickstart.md walkthrough in a real browser (Scenarios 1–7 incl. devtools egress check SC-004), repeating Scenario 1 in Firefox (NFR-004), and record results in tests/manual/test_004_ui.md
 - [ ] T025 Docs: add the UI to docs/quickstart or README usage notes (open 127.0.0.1:8377 in a browser); note the layered-honesty behaviour
 
 ---

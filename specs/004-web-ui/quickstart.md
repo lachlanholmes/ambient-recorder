@@ -2,6 +2,8 @@
 
 Validation guide — all scenarios run in a desktop browser against
 `http://127.0.0.1:8377/`. Prereq: recorder running (any layer set).
+Primary browser: Chromium-family; repeat Scenario 1 in Firefox
+(NFR-004).
 
 ## Scenario 1 — full meeting workflow (US1/US3, SC-001)
 
@@ -48,6 +50,9 @@ dead buttons, no console errors.
    banner appears; restart it → the page recovers without reload.
 2. Open a second tab; start/stop from one; the other reflects it
    within a poll tick; both live streams show identical segments.
+3. While an answer is still streaming in tab A, open the same
+   conversation in tab B: the partial answer replays and then tails to
+   the same completion (WS prefix-replay contract).
 
 ## Scenario 7 — state gallery (SC-006)
 
