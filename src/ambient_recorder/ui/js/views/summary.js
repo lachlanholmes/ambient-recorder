@@ -39,12 +39,33 @@ export async function renderSummaryPane(panel, sessionId, state, ctx) {
         } catch { /* keep empty */ }
       }
     }
-    if (!destroyed) render();
+    if (!destroyed) renderIfChanged();
   }
 
   function pendingRun() {
     if (current?.state === "pending") return current;
     return versions.find((v) => v.state === "pending") || null;
+  }
+
+  // Re-render only when displayed state actually changed — a needless
+  // redraw destroys the reader's text selection mid-copy.
+  let lastKey = null;
+
+  function renderKey() {
+    const session = ctx.getSession();
+    const transcript = ctx.getTranscript();
+    const p = pendingRun();
+    return [
+      current?.id, current?.state, current?.failure_reason,
+      p ? p.task_state || p.state || "pending" : "",
+      readable?.id, readableIsPrevious, error, busy,
+      state.assistant?.ready, state.assistant?.status, state.assistant?.reason,
+      session.status, transcript?.state, transcript?.final,
+    ].join("|");
+  }
+
+  function renderIfChanged() {
+    if (renderKey() !== lastKey) render();
   }
 
   async function request() {
@@ -58,6 +79,46 @@ export async function renderSummaryPane(panel, sessionId, state, ctx) {
     }
     busy = false;
     await load();
+  }
+
+  // ---- copy (plain text of the whole summary) ---------------------------
+
+  function summaryText(c) {
+    const lines = ["Overview", c.overview, ""];
+    if (c.key_points?.length) {
+      lines.push("Key points", ...c.key_points.map((i) => `- ${i.text}`), "");
+    }
+    if (c.decisions?.length) {
+      lines.push("Decisions", ...c.decisions.map((i) => `- ${i.text}`), "");
+    }
+    if (c.action_items?.length) {
+      lines.push("Action items", ...c.action_items.map((i) =>
+        `- [${i.owner}] ${i.text}${i.deadline_text ? ` (${i.deadline_text})` : ""}`));
+    }
+    return lines.join("\n").trim() + "\n";
+  }
+
+  async function copySummary(btn) {
+    const text = summaryText(readable.content);
+    try {
+      // writeText can hang (not just reject) in an unfocused document —
+      // race it so the fallback and the feedback always happen.
+      await Promise.race([
+        navigator.clipboard.writeText(text),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 800)),
+      ]);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.append(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    btn.textContent = "✓";
+    setTimeout(() => {
+      btn.textContent = "⧉";
+    }, 1500);
   }
 
   // ---- structured render ------------------------------------------------
@@ -100,6 +161,7 @@ export async function renderSummaryPane(panel, sessionId, state, ctx) {
   }
 
   function render() {
+    lastKey = renderKey();
     clear(panel);
     const head = el("div.panel-head", el("h2", "Summary"));
     panel.append(head);
@@ -119,6 +181,13 @@ export async function renderSummaryPane(panel, sessionId, state, ctx) {
       head.append(el("button" + (readable ? "" : ".primary"),
         readable ? "Re-summarize" : "Generate summary",
         { disabled: busy, onclick: request }));
+    }
+    if (readable?.content) {
+      head.append(el("button.icon-btn", "⧉", {
+        title: "Copy summary",
+        "aria-label": "Copy summary",
+        onclick: (ev) => copySummary(ev.currentTarget),
+      }));
     }
 
     if (current?.state === "failed" && !pending) {
@@ -170,9 +239,10 @@ export async function renderSummaryPane(panel, sessionId, state, ctx) {
     },
     onPoll() {
       // Session/transcript state gates the buttons; a pending run needs
-      // progress; both ride the 3 s poll.
+      // progress; both ride the 3 s poll — but only redraw on change,
+      // so reading (and selecting text to copy) isn't disturbed.
       if (pendingRun()) load();
-      else render();
+      else renderIfChanged();
     },
   };
 }

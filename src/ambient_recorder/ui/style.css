@@ -39,6 +39,7 @@ button:hover { border-color: var(--me); }
 button:disabled { opacity: 0.5; cursor: default; }
 button.primary { background: var(--me); border-color: var(--me); color: #fff; }
 button.primary:hover { filter: brightness(1.08); }
+button.icon-btn { padding: 4px 9px; line-height: 1; font-size: 14px; }
 
 input[type="text"] {
   font: inherit;
