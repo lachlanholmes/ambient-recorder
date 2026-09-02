@@ -41,6 +41,8 @@ transcription = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ambient_recorder"]
+# 004: the browser UI ships inside the wheel (constitution I — all assets local)
+include = ["src/ambient_recorder/ui/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/contract", "tests/unit", "tests/integration"]

@@ -26,6 +26,27 @@ in the codebase. See `.specify/memory/constitution.md`, Principle I.
   multi-turn Q&A with citations and honest "not discussed" declines;
   live in-meeting questions answered from the transcript-so-far. Answers
   stream over `WS /conversations/{cid}/stream`.
+- **Feature 004 — web UI**: the recorder serves its own browser UI at
+  the same address — sessions, live transcript, summaries with citation
+  jumps, and the assistant panel, with zero terminal commands.
+
+## Web UI
+
+With the recorder running, open **http://127.0.0.1:8377/** in a desktop
+Chromium- or Firefox-family browser. No separate server, no build step:
+the UI ships inside the package and is served by the same process/port
+as the API, with all assets local (a `default-src 'self'` CSP enforces
+that nothing non-loopback can load — constitution I).
+
+The page mirrors the system's **layered honesty**: each layer (capture
+devices, transcription, assistant) shows ready/unavailable with its
+remedy, and whatever is unavailable simply degrades — on a capture-only
+install the recording workflow is fully usable while the transcription
+and assistant panels explain what to install. Live sessions stream the
+transcript with the current lag shown; closing and reopening the tab
+mid-meeting loses nothing (the stream's cursor contract); if the
+recorder restarts, the page says so and recovers by itself. The UI is a
+pure client of the documented APIs — it can only do what `curl` can.
 
 ## Assistant setup (optional, constitution gate (c))
 

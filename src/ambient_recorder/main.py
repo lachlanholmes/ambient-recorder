@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from ambient_recorder.api.assistant_routes import router as assistant_router
 from ambient_recorder.api.errors import register_error_handlers
 from ambient_recorder.api.routes import router
+from ambient_recorder.api.static_ui import mount_ui
 from ambient_recorder.api.transcription_routes import router as transcription_router
 from ambient_recorder.api.ws import router as ws_router
 from ambient_recorder.assistant.protocols import AssistantEngineFactory
@@ -134,4 +135,5 @@ def create_app(
     app.include_router(assistant_router)
     app.include_router(ws_router)
     register_error_handlers(app)
+    mount_ui(app)  # after all routers: every API/WS route keeps winning (004 R2)
     return app
